@@ -27,7 +27,10 @@ jobs:
           java-version: '17'
       - name: Verify pure Java playlist and failover logic
         run: bash tests/run-tests.sh
-      - uses: android-actions/setup-android@v3
+      - name: Set up Android SDK (supported platform-tools only)
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
       - name: Install Android SDK platform
         run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v4
