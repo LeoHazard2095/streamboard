@@ -1,0 +1,61 @@
+name: Build StreamBoard IPTV Android
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'tests/**'
+      - '*.gradle'
+      - 'gradle.properties'
+      - '.github/workflows/**'
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    env:
+      STREAMBOARD_KEYSTORE_B64: ${{ secrets.STREAMBOARD_KEYSTORE_B64 }}
+      STREAMBOARD_STORE_PASSWORD: ${{ secrets.STREAMBOARD_STORE_PASSWORD }}
+      STREAMBOARD_KEY_ALIAS: ${{ secrets.STREAMBOARD_KEY_ALIAS }}
+      STREAMBOARD_KEY_PASSWORD: ${{ secrets.STREAMBOARD_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify pure Java playlist and failover logic
+        run: bash tests/run-tests.sh
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK platform
+        run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Compile Android debug APK
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - name: Label debug APK as test build
+        run: cp app/build/outputs/apk/debug/app-debug.apk StreamBoard-IPTV-v1.0.0-TEST.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StreamBoard-v1.0.0-TEST-APK
+          path: StreamBoard-IPTV-v1.0.0-TEST.apk
+          if-no-files-found: error
+      - name: Configure permanent owner release signing
+        if: ${{ env.STREAMBOARD_KEYSTORE_B64 != '' && env.STREAMBOARD_STORE_PASSWORD != '' && env.STREAMBOARD_KEY_ALIAS != '' && env.STREAMBOARD_KEY_PASSWORD != '' }}
+        run: |
+          echo "$STREAMBOARD_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/streamboard-release.jks"
+          echo "STREAMBOARD_KEYSTORE_PATH=$RUNNER_TEMP/streamboard-release.jks" >> "$GITHUB_ENV"
+      - name: Build permanent signed release APK
+        if: ${{ env.STREAMBOARD_KEYSTORE_PATH != '' }}
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
+      - name: Name signed APK
+        if: ${{ env.STREAMBOARD_KEYSTORE_PATH != '' }}
+        run: cp app/build/outputs/apk/release/app-release.apk StreamBoard-IPTV-v1.0.0-RELEASE.apk
+      - uses: actions/upload-artifact@v4
+        if: ${{ env.STREAMBOARD_KEYSTORE_PATH != '' }}
+        with:
+          name: StreamBoard-v1.0.0-SIGNED-RELEASE-APK
+          path: StreamBoard-IPTV-v1.0.0-RELEASE.apk
+          if-no-files-found: error
