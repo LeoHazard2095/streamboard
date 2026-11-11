@@ -126,7 +126,18 @@ function renderStudioExportSummary(){const entries=studioEntries(),distinct=new 
 async function studioExport(format){const entries=studioEntries();if(!entries.length){setText('studio-status','No channels selected. Enable sources and categories or change the approval filter.');return;}
  const content=format==='csv'?A.createCsv(entries):A.createM3u(entries);try{const result=await window.streamBoard.exportFile({format,content});setText('studio-status',result.saved?`Saved ${entries.length.toLocaleString()} stream entries as ${format.toUpperCase()}.`:'Export cancelled.');}catch(e){setText('studio-status','Export failed: '+e.message);}}
 
+function setCompactPlayer(compact){
+ document.documentElement.classList.toggle('compact-player',compact);
+ const button=$('compact-view');
+ button.setAttribute('aria-pressed',String(compact));
+ button.textContent=compact?'▣ Comfortable':'▣ Compact';
+ button.title=compact?'Restore larger video':'Reduce player height for more channel browsing';
+ try{localStorage.setItem('streamboard-compact-player',compact?'1':'0');}catch{}
+}
 function setup(){
+ let compact=false;try{compact=localStorage.getItem('streamboard-compact-player')==='1';}catch{}
+ setCompactPlayer(compact);
+ $('compact-view').onclick=()=>setCompactPlayer(!document.documentElement.classList.contains('compact-player'));
  setupScroll();for(const b of document.querySelectorAll('[data-tab]'))b.onclick=()=>switchTab(b.dataset.tab);
  for(const [inputId] of [['search'],['access-search']])$(inputId).addEventListener('input',e=>{query=e.target.value;category='All';drawCategories();filterRows();});
  $('refresh-btn').onclick=refreshAll;$('refresh-all').onclick=refreshAll;
