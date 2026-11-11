@@ -3,7 +3,7 @@ plugins {
 }
 android {
     namespace 'com.techboard.streamboard'
-    compileSdk 35
+    compileSdk 36
     defaultConfig {
         applicationId 'com.techboard.streamboard'
         minSdk 24

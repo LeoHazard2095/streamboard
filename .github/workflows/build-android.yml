@@ -27,15 +27,17 @@ jobs:
           java-version: '17'
       - name: Verify pure Java playlist and failover logic
         run: bash tests/run-tests.sh
-      - name: Set up Android SDK (supported platform-tools only)
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
           packages: platform-tools
       - name: Install Android SDK platform
-        run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+        run: sdkmanager --install 'platforms;android-36' 'build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.13'
+      - name: Validate Android dependency AAR metadata
+        run: gradle :app:checkDebugAarMetadata --no-daemon --console=plain
       - name: Compile Android debug APK
         run: gradle :app:assembleDebug --no-daemon --stacktrace
       - name: Label debug APK as test build
