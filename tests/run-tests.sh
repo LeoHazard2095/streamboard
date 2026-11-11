@@ -10,6 +10,7 @@ javac -encoding UTF-8 -d tests/out \
   app/src/main/java/com/techboard/streamboard/core/ChannelIdentity.java \
   app/src/main/java/com/techboard/streamboard/core/ChannelMerge.java \
   app/src/main/java/com/techboard/streamboard/core/SourceSelector.java \
-  tests/ParserTest.java tests/MergeTest.java
+  tests/ParserTest.java tests/MergeTest.java tests/PerformanceTest.java
 java -cp tests/out ParserTest
 java -cp tests/out MergeTest
+java -cp tests/out PerformanceTest

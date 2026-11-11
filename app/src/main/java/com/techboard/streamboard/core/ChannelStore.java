@@ -25,6 +25,8 @@ public final class ChannelStore {
     private final Set<String> allowed = new HashSet<>();
     private final Set<String> hiddenCategories = new HashSet<>();
     private final Map<String,String> preferred = new HashMap<>();
+    private List<ChannelGroup> cachedGroups = null;
+    private void invalidateGroups(){cachedGroups=null;}
 
     public ChannelStore(Context context) {
         this.context=context.getApplicationContext();
@@ -68,12 +70,14 @@ public final class ChannelStore {
     public synchronized List<PlaylistSource> sources() { return new ArrayList<>(sources); }
     public synchronized List<Channel> rawChannels() { return new ArrayList<>(channels); }
     public synchronized List<ChannelGroup> mergedChannels() {
-        List<ChannelGroup> result = ChannelMerge.merge(channels);
-        for(ChannelGroup g:result) {
-            if(overrides.containsKey(g.id)) g.category=overrides.get(g.id);
-            g.allowed=allowed.contains(g.id);
+        if(cachedGroups==null){
+            cachedGroups=ChannelMerge.merge(channels);
+            for(ChannelGroup g:cachedGroups){
+                if(overrides.containsKey(g.id))g.category=overrides.get(g.id);
+                g.allowed=allowed.contains(g.id);
+            }
         }
-        return result;
+        return new ArrayList<>(cachedGroups);
     }
     public synchronized ChannelGroup findGroup(String id) {
         for(ChannelGroup group:mergedChannels())if(group.id.equals(id))return group;
@@ -82,6 +86,7 @@ public final class ChannelStore {
     public synchronized boolean isAllowed(String id) {return allowed.contains(id);}
     public synchronized void setAllowed(String id, boolean value) {
         if(value)allowed.add(id);else allowed.remove(id);
+        if(cachedGroups!=null)for(ChannelGroup g:cachedGroups)if(g.id.equals(id))g.allowed=value;
         pref.edit().putStringSet("allowed",new HashSet<>(allowed)).apply();
     }
     public synchronized boolean categoryVisible(String category) {return !hiddenCategories.contains(category);}
@@ -97,6 +102,7 @@ public final class ChannelStore {
     }
     public synchronized void overrideCategory(ChannelGroup group,String category) {
         overrides.put(group.id,category);
+        if(cachedGroups!=null)for(ChannelGroup g:cachedGroups)if(g.id.equals(group.id))g.category=category;
         JSONObject o=new JSONObject();for(Map.Entry<String,String> e:overrides.entrySet())try{o.put(e.getKey(),e.getValue());}catch(Exception ignored){}
         pref.edit().putString("overrides",o.toString()).apply();
     }
@@ -113,12 +119,12 @@ public final class ChannelStore {
     }
     public synchronized void removeSource(String id) {
         sources.removeIf(s->s.id.equals(id));
-        channels.removeIf(c->c.sourceId.equals(id));
+        channels.removeIf(c->c.sourceId.equals(id));invalidateGroups();
         saveSources(); saveChannels();
     }
     public synchronized void replaceSourceChannels(String id,List<Channel> incoming) {
         channels.removeIf(c->c.sourceId.equals(id));
-        channels.addAll(incoming);
+        channels.addAll(incoming);invalidateGroups();
         saveChannels();
     }
     private void loadFavorites() {

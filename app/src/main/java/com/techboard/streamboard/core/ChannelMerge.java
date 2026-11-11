@@ -16,7 +16,7 @@ public final class ChannelMerge {
             if(channel==null || !M3uParser.isUrl(channel.streamUrl))continue;
             String nameKey=ChannelIdentity.stableKey(channel);
             String tvgKey=ChannelIdentity.validTvgId(channel.tvgId);
-            ChannelGroup target=findMatch(byTvgId.get(tvgKey),channel);
+            ChannelGroup target=tvgKey.isEmpty()?null:findMatch(byTvgId.get(tvgKey),channel);
             if(target==null) target=findMatch(byName.get(nameKey),channel);
             if(target==null) {
                 List<ChannelGroup> similarlyNamed=byName.get(nameKey);
@@ -37,7 +37,10 @@ public final class ChannelMerge {
     private static ChannelGroup findMatch(List<ChannelGroup> candidates, Channel incoming) {
         if(candidates==null)return null;
         for(ChannelGroup candidate:candidates) {
-            for(Channel existing:candidate.feeds) if(ChannelIdentity.same(existing,incoming)) return candidate;
+            // Bucket keys already match (TV guide ID or normalized name). Comparing
+            // every feed made big multi-source playlists quadratic and froze UI.
+            if(ChannelIdentity.compatible(candidate.country,incoming.country)
+                && ChannelIdentity.compatible(candidate.language,incoming.language))return candidate;
         }
         return null;
     }

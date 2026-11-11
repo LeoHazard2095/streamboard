@@ -1,52 +1,58 @@
-# StreamBoard IPTV v1.1.0 — T Play-inspired navigation and adaptive HLS
+# StreamBoard IPTV v1.1.1 — stability, persistent player, playlist diagnostics
 
-**One repository, two separate app builds.** Original Android package ID: `com.techboard.streamboard` (unchanged). Android versionCode 2; min Android 7.0. New desktop companion (Electron) builds on Windows.
+**Android**: versionName `1.1.1`, versionCode `3`, application ID `com.techboard.streamboard` unchanged. Android 7.0+.
+**Windows**: Electron installer `1.1.1` under the same GitHub repository.
 
-## Highlights
+## Changes made
 
-- Reworked Android navigation: Live TV, Favorites, Access, Sources; dark TV-first visual hierarchy, search, category chips, fast-scrolling recycled channel rows, channel art, favorite toggle and Resume last channel.
-- Improved Android player: Media3 HLS adaptive track selection on multi-variant HLS masters; quality menu for Auto/360/480/720/1080 *maximum caps*; immersive landscape fullscreen with visible exit control and system Back key; current-video-resolution indicator; existing bounded source failover still attempts alternatives on error or 30 seconds buffering.
-- The new supplied `https://livetgtv.lovable.app/api/public/playlist.m3u` URL is a **third default playlist**. Existing installations add it in a one-time settings migration without clearing channels, approvals, favorites, or categories. The importer reads `#EXTINF`, `group-title`, `tvg-logo`, language/country attributes, and merges compatible duplicate channel entries. All new entries are **blocked until explicitly allowed**.
-- Added `desktop/` with a Windows Electron app: sidebar, built-in player, multiple playlist sources, category management, channel approval, favorites, source selection, basic HLS adaptive-quality caps and failover. Desktop preferences are stored separately in the operating system's application data directory.
-- New Windows GitHub Action builds `.exe`; Android workflow builds `.apk`. Android and Windows share the feature design and sample playlist URLs, but do not yet synchronize permissions between devices.
+**Android stability and responsiveness**
+- Channel cache loads on a worker thread on startup, instead of blocking the main thread while reading a big JSON catalog.
+- Channel groups are cached. They are recomputed only after source import/removal and are updated in-place for permission/category changes.
+- Multi-source grouping no longer loops over every existing feed; a synthetic 8,000-alternative channel merges promptly in the regression fixture.
+- Logo loader caps concurrent requests, deduplicates pending requests, caches failures briefly, caps memory to 3 MiB, and decodes images with a reduced bitmap sample before resizing. Reduces memory pressure; **not a proven fix for every device crash**.
+- Search updates are debounced, and bulk stream checks are limited to 40 per batch.
 
-## Build using GitHub Codespaces
+**Android persistent picture-in-guide**
+- The same ExoPlayer is kept in a dock above the Live, Favorites, Access and Sources tabs while you browse. Selecting another channel changes the stream without navigating away.
+- Previous/next channel buttons, source selector, auto/adaptive quality selector, immersive landscape fullscreen and fullscreen exit.
+- Automatically tries alternatives on playback error, ended playback, or extended buffering (30 seconds), with a bounded attempt set.
+- Retains category visibility and channel approval gates. If the active channel becomes blocked or hidden, playback stops.
+- Media3 adaptive bitrate is effective only for HLS masters advertising multiple quality renditions.
 
-For the **existing StreamBoard repository**, upload `StreamBoard-IPTV-v1.1.0-UPDATE.zip` at repo root, then:
+**Windows**
+- Player remains visible while switching tabs and scrolling channels, using a pinned two-column layout on wide windows.
+- Avoids recomputing merged channels on every keystroke/tab change, uses set-based stream de-duplication and asynchronous settings writes.
+
+**Playlist inspection**
+- Android Sources > **Inspect** shows counts from the last imported playlist: categories, streams, logo coverage, TV guide identifiers and top domains.
+- Windows Sources > **Inspect** shows equivalent details.
+- Codespaces CLI: `python3 tools/inspect_playlist.py` attempts to fetch the supplied Live TG TV playlist and prints a metadata report, **without fetching video segments**. Override with `python3 tools/inspect_playlist.py 'https://example.com/list.m3u'`.
+- The Live TG TV endpoint was not retrievable from this environment during preparation; no channel count or quality claims were invented. Your device may retrieve it successfully even if an external crawler cannot.
+
+## Upgrade your existing repository (Codespaces)
+
+Upload `StreamBoard-IPTV-v1.1.1-UPDATE.zip` to your **StreamBoard** repo root:
 
 ```bash
 git pull --rebase origin main
-unzip -o StreamBoard-IPTV-v1.1.0-UPDATE.zip
-rm -f StreamBoard-IPTV-v1.1.0-UPDATE.zip
+unzip -o StreamBoard-IPTV-v1.1.1-UPDATE.zip
+rm -f StreamBoard-IPTV-v1.1.1-UPDATE.zip
 git add -A
-git commit -m "StreamBoard IPTV v1.1.0 player and UI overhaul"
+git commit -m "StreamBoard IPTV 1.1.1 persistent player and performance"
 git push origin main
 ```
 
-Open GitHub Actions and choose `Build StreamBoard IPTV Android v1.1` or `Build StreamBoard Windows Desktop` (desktop workflow is a separate file). Download the produced debug APK/Windows EXE from the successful run's Artifacts. Debug APK is for testing, not release-signed. Changing Android signing keys prevents in-place install; maintain the same signing identity for upgrades.
+GitHub Actions will build the Android test APK and Windows installer separately. The source does **not** contain a compiled APK/EXE. These tasks were not compiled on Android/Windows in the current environment; GitHub Actions and real-device testing remain mandatory.
 
-For a **fresh repo**, upload/extract `StreamBoard-IPTV-v1.1.0-SOURCE.zip` instead. The ZIP contains all Android and Windows files at the repository root (no wrapper folder).
+## Testing checklist
 
-### Player limitations
+1. Install the APK over the same package+signer; if switching from debug to release signature, installation will conflict. Back up approval settings first if an uninstall is needed.
+2. Confirm previous playlists, favorites, approvals and categories remain unchanged.
+3. Test large playlists; scroll Live and Saved while video stays in view. Try switching category, Access, and Sources without stopping video.
+4. Play Cartoon Network, then change to another allowed channel; use source selector to test fallback. Test fullscreen portrait/landscape transitions and return to guide.
+5. Block the playing channel in Access: it should stop and disappear. Unblock and play again.
+6. Sources > Live TG TV > Refresh, then Inspect. Record counts and any HTTP error/status; do not assume the response is valid just because URL returns 200.
+7. Test a multi-quality HLS master under throttled bandwidth. Single-rendition HLS does not provide adaptive resolution.
+8. For a remaining Android crash, capture `adb logcat -d -v time | grep -E 'FATAL EXCEPTION|com.techboard.streamboard|OutOfMemoryError'` (run from a connected PC) and share the first exception stack plus phone model/Android version. Remove stream tokens or login data from the log before sharing.
 
-- Auto HLS quality switching only works if the supplied HLS master contains multiple renditions. Single-bitrate streams have no other resolution to select. 360p/480p etc are *caps*, not guarantees of exact tracks.
-- Failover detects playback errors, stream-ended events and prolonged buffering; it **cannot detect ad-only streams, the wrong programme, or a provider intentionally streaming an advertisement**.
-- Some sources need login, token access, DRM licences or region access. Neither player circumvents authentication, DRM or geographic restrictions.
-- **Desktop limitation:** HLS.js requires cross-origin access to the video chunks. Sources that do not provide suitable CORS headers may fail on Windows even when they work with Android ExoPlayer. The desktop build is a first functional prototype, not a complete replacement for an unrestricted native media engine.
-- The new supplied playlist URL was not retrievable from this environment. It is configured for device-side import; **individual channel names, counts and playback cannot be claimed verified**.
-- Only stream sources you are permitted to view. Public playlist publication is not proof of rebroadcast rights.
-
-## Validation status
-
-- `bash tests/run-tests.sh` — verified Android core logic (M3U parsing, category assignment, merging and fallback behavior).
-- `cd desktop && npm test` — verified desktop parser and merging fixtures.
-- ZIP structure and migration markers verified by archive checks.
-- No Android SDK or Windows Electron runtime is installed here. The full APK/EXE builds, device behavior, and imported Live TG playlist require GitHub Actions and real-device tests.
-
-## Project locations
-
-- Android main UI: `app/src/main/java/com/techboard/streamboard/ui/MainActivity.java`
-- Android HLS Player: `app/src/main/java/com/techboard/streamboard/ui/PlayerActivity.java`
-- Android playlist defaults and migration: `app/src/main/java/com/techboard/streamboard/core/ChannelStore.java`
-- Desktop: `desktop/`
-- GitHub workflows: `.github/workflows/build-android.yml`, `.github/workflows/build-desktop.yml`
+Only use streams you have permission to access. Playlist entries may be region-locked, tokenized, geo-restricted, offline or changing over time. Stream reachability checks cannot validate that the expected programme is playing.

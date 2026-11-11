@@ -63,6 +63,22 @@ function renderSources(){const list=$('source-list');list.replaceChildren();
   text.append(node('strong','',s.title),node('small','',`${count} channels · ${new URL(s.url).hostname} · ${statuses.get(s.id)||'Saved source'}`));row.append(text);
   const acts=node('div','actions');
   const refresh=node('button','','↻ Refresh');refresh.onclick=()=>refreshSource(s);acts.append(refresh);
+  const inspect=node('button','','Inspect');inspect.onclick=()=>{
+   const own=state.channels.filter(x=>x.sourceId===s.id);
+   const countBy=(key)=>{
+     const grouped=new Map();for(const c of own){const k=c[key]||'Other';grouped.set(k,(grouped.get(k)||0)+1);}
+     return Array.from(grouped).sort((a,b)=>b[1]-a[1]);
+   };
+   const domains=new Map();for(const c of own){try{const host=new URL(c.url).hostname;domains.set(host,(domains.get(host)||0)+1);}catch{}}
+   const rows=[`Playlist: ${s.title}`,`Imported channel entries: ${own.length}`,
+    `Unique stream URLs: ${new Set(own.map(c=>c.url)).size}`,
+    `Entries with logo: ${own.filter(c=>c.logo).length}`,
+    `Entries with TV guide ID: ${own.filter(c=>c.tvgId).length}`,
+    '', 'Categories:',...countBy('category').map(([label,n])=>`  ${label}: ${n}`),
+    '', 'Top stream hosts:',...Array.from(domains).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([host,n])=>`  ${host}: ${n}`),
+    '', 'These are imported entries, not verified playing broadcasts.'];
+   const dialog=$('inspect-dialog');$('inspect-text').textContent=rows.join('\n');dialog.showModal();
+  };acts.append(inspect);
   const remove=node('button','ghost','Remove');remove.onclick=()=>{
    if(!window.confirm(`Remove playlist ${s.title}?`))return;
    state.sources=state.sources.filter(x=>x.id!==s.id);
@@ -70,8 +86,23 @@ function renderSources(){const list=$('source-list');list.replaceChildren();
   };acts.append(remove);row.append(acts);list.append(row);
  }
 }
+function enforceAccess(){
+ if(!channel)return;
+ const latest=merged.find(g=>g.id===channel.id);
+ if(latest && allowed(latest))return;
+ closePlayback();channel=null;feeds=[];tried.clear();
+ document.body.classList.remove('playing');
+ $('playing-title').textContent='Playback stopped';
+ $('player-status').textContent='Channel blocked, hidden, or removed';
+ $('video-overlay').style.display='flex';
+ $('video-overlay').querySelector('h2').textContent='Choose an approved channel';
+ $('video-overlay').querySelector('p').textContent='Your channel restrictions are applied immediately.';
+}
 function render(){
- recompute();updateStats();
+ enforceAccess();
+ // Rebuilding merged thousands of channels on every keystroke was expensive.
+ // Recompute only after an actual source/channel mutation.
+ updateStats();
  for(const b of document.querySelectorAll('[data-tab]'))b.classList.toggle('active',b.dataset.tab===tab);
  const playerVisible=tab==='live'||tab==='favorites';$('player-section').hidden=!playerVisible;
  $('library').hidden=!playerVisible;$('access').hidden=tab!=='access';$('sources-panel').hidden=tab!=='sources';
@@ -86,7 +117,7 @@ async function refreshSource(source){statuses.set(source.id,'Downloading…');me
    const channels=L.parse(text,source.id,source.title,source.url);
    if(!channels.length)throw Error('No playable channel entries in playlist');
    state.channels=state.channels.filter(c=>c.sourceId!==source.id).concat(channels);
-   statuses.set(source.id,`Imported ${channels.length} entries`);await save();message(`${source.title}: ${channels.length} entries indexed`);
+   recompute();statuses.set(source.id,`Imported ${channels.length} entries`);await save();message(`${source.title}: ${channels.length} entries indexed`);
  }catch(e){statuses.set(source.id,`Failed: ${e.message}`);message(`${source.title}: ${e.message}. Old entries retained.`);}
  render();
 }
@@ -151,5 +182,5 @@ $('add-source').onsubmit=e=>{e.preventDefault();const url=$('source-url').value.
 window.streamBoard.load().then(async value=>{
  state=value||{};for(const key of ['sources','channels','allowed','favorites','hiddenCategories'])if(!Array.isArray(state[key]))state[key]=[];
  if(!state.preferred)state.preferred={};if(!state.sources.length)state.sources=defaultSources;
- render();if(!state.channels.length)refreshAll();
+ recompute();render();if(!state.channels.length)refreshAll();
 }).catch(e=>{message('Could not load saved data: '+e.message);});

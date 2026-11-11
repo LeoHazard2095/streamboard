@@ -14,3 +14,10 @@ test('Direct HLS is a single source, decorative headers ignored',()=>{
  assert.equal(parse('#EXTM3U\n#EXT-X-TARGETDURATION:3','one','Direct','https://one.example/live.m3u8').length,1);
  assert.equal(parse('#EXTM3U\n#EXTINF:-1,⚡ IPTV LINKS\nhttps://x.example/not-channel\n#EXTINF:-1,Actual\nhttps://x.example/real','one','A','https://x.example/a.m3u').length,1);
 });
+test('8000 alternate streams merge without pathological runtime',()=>{
+ const raw=[];
+ for(let i=0;i<8000;i++)raw.push({name:i%2?'Cartoon Network SD':'Cartoon Network HD',url:`https://example.com/${i}.m3u8`,logo:'',tvgId:'',group:'Kids',category:'Kids',language:'Hindi',country:'IN',sourceId:'test',sourceName:'Test'});
+ const t=Date.now();const groups=merge(raw);
+ assert.equal(groups.length,1);assert.equal(groups[0].feeds.length,8000);
+ assert.ok(Date.now()-t<5000,'Merging 8000 feeds should remain responsive');
+});

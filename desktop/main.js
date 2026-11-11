@@ -4,6 +4,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const {URL}=require('node:url');
 let main;
+let saveQueue=Promise.resolve();
 const defaults=[
   {id:'bdix',title:'BDIX IPTV',url:'https://raw.githubusercontent.com/saeidrahmanbd/BDIX-IPTV/main/IPTV-Playlist.m3u'},
   {id:'vip',title:'VIP KB Pro',url:'https://raw.githubusercontent.com/Mrbotrx/VIP-m3u-playlist/refs/heads/main/Vip%20playlists/vip_kbpro.m3u8'},
@@ -36,8 +37,14 @@ function safeState(input){
 app.whenReady().then(()=>{
   ipcMain.handle('catalog:load',()=>readState());
   ipcMain.handle('catalog:save',(_event,state)=>{
-    const clean=safeState(state);const file=settingsPath();fs.mkdirSync(path.dirname(file),{recursive:true});
-    fs.writeFileSync(file+'.tmp',JSON.stringify(clean));fs.renameSync(file+'.tmp',file);return true;
+    const clean=safeState(state),file=settingsPath();
+    // Serialize writes so rapid approval edits cannot race on the same temp file.
+    saveQueue=saveQueue.catch(()=>{}).then(async ()=>{
+      await fs.promises.mkdir(path.dirname(file),{recursive:true});
+      await fs.promises.writeFile(file+'.tmp',JSON.stringify(clean));
+      await fs.promises.rename(file+'.tmp',file);return true;
+    });
+    return saveQueue;
   });
   ipcMain.handle('playlist:fetch',async (_event,address)=>{
     if(!validUrl(address))throw Error('Only HTTP and HTTPS playlist links are supported');

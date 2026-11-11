@@ -1,7 +1,7 @@
 {
   "name": "streamboard-desktop",
   "productName": "StreamBoard IPTV",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "StreamBoard multi-source IPTV desktop companion",
   "main": "main.js",

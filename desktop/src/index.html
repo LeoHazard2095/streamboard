@@ -12,5 +12,6 @@
 <section id="sources-panel" hidden><div class="panel-title"><h2>Playlist sources</h2><p>Add, refresh, and remove playlists. If refresh fails, existing channel data is kept.</p></div>
 <form id="add-source"><input id="source-name" placeholder="Playlist name"/><input id="source-url" placeholder="https://example.com/playlist.m3u" required/><button type="submit">+ Add source</button></form>
 <div class="row"><button id="refresh-all">↻ Refresh all playlists</button><span class="sub" id="import-status">Sources are imported on this device.</span></div><div id="source-list" class="source-list"></div></section>
+<dialog id="inspect-dialog" class="inspect-dialog"><div class="dialog-header"><strong>Playlist inspection</strong><button onclick="document.getElementById('inspect-dialog').close()">Close</button></div><pre id="inspect-text"></pre></dialog>
 </main></div>
 <script src="hls.min.js"></script><script src="logic.js"></script><script src="app.js"></script></body></html>

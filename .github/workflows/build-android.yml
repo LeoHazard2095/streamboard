@@ -1,4 +1,4 @@
-name: Build StreamBoard IPTV Android v1.1
+name: Build StreamBoard IPTV Android v1.1.1
 on:
   workflow_dispatch:
   push:
@@ -41,11 +41,11 @@ jobs:
       - name: Compile Android debug APK
         run: gradle :app:assembleDebug --no-daemon --stacktrace
       - name: Label debug APK as test build
-        run: cp app/build/outputs/apk/debug/app-debug.apk StreamBoard-IPTV-v1.1.0-TEST.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk StreamBoard-IPTV-v1.1.1-TEST.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: StreamBoard-v1.1.0-TEST-APK
-          path: StreamBoard-IPTV-v1.1.0-TEST.apk
+          name: StreamBoard-v1.1.1-TEST-APK
+          path: StreamBoard-IPTV-v1.1.1-TEST.apk
           if-no-files-found: error
       - name: Configure permanent owner release signing
         if: ${{ env.STREAMBOARD_KEYSTORE_B64 != '' && env.STREAMBOARD_STORE_PASSWORD != '' && env.STREAMBOARD_KEY_ALIAS != '' && env.STREAMBOARD_KEY_PASSWORD != '' }}
@@ -57,10 +57,10 @@ jobs:
         run: gradle :app:assembleRelease --no-daemon --stacktrace
       - name: Name signed APK
         if: ${{ env.STREAMBOARD_KEYSTORE_PATH != '' }}
-        run: cp app/build/outputs/apk/release/app-release.apk StreamBoard-IPTV-v1.1.0-RELEASE.apk
+        run: cp app/build/outputs/apk/release/app-release.apk StreamBoard-IPTV-v1.1.1-RELEASE.apk
       - uses: actions/upload-artifact@v4
         if: ${{ env.STREAMBOARD_KEYSTORE_PATH != '' }}
         with:
-          name: StreamBoard-v1.1.0-SIGNED-RELEASE-APK
-          path: StreamBoard-IPTV-v1.1.0-RELEASE.apk
+          name: StreamBoard-v1.1.1-SIGNED-RELEASE-APK
+          path: StreamBoard-IPTV-v1.1.1-RELEASE.apk
           if-no-files-found: error

@@ -33,9 +33,11 @@ function merge(channels){
     const k=canonicalName(c.name)||c.url;
     let match=(byKey.get(k)||[]).find(g=>!(g.country&&c.country&&g.country!==c.country)&&!(g.language&&c.language&&g.language!==c.language));
     if(!match){match={id:k+(byKey.get(k)||[]).length,name:c.name,category:c.category||'Other',language:c.language||'',country:c.country||'',logo:c.logo||'',feeds:[]};groups.push(match);if(!byKey.has(k))byKey.set(k,[]);byKey.get(k).push(match);}
-    if(!match.feeds.some(existing=>existing.url===c.url))match.feeds.push(c);
+    if(!match._urlSet)match._urlSet=new Set(match.feeds.map(x=>x.url));
+    if(!match._urlSet.has(c.url)){match._urlSet.add(c.url);match.feeds.push(c);}
     if(!match.logo&&c.logo)match.logo=c.logo;
   }
+  for(const g of groups)delete g._urlSet;
   return groups.sort((a,b)=>a.name.localeCompare(b.name));
 }
 return {parse,merge,canonicalName,category,urlOk};

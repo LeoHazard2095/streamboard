@@ -8,6 +8,7 @@ import java.util.List;
 public final class ChannelGroup {
     public final String id;
     public final List<Channel> feeds = new ArrayList<>();
+    private final java.util.Set<String> feedUrls = new java.util.HashSet<>();
     public String name = "";
     public String category = "Other";
     public String language = "";
@@ -20,7 +21,7 @@ public final class ChannelGroup {
         add(first);
     }
     public void add(Channel feed) {
-        for (Channel existing : feeds) if (existing.streamUrl.equals(feed.streamUrl)) return;
+        if (!feedUrls.add(feed.streamUrl)) return;
         feeds.add(feed);
         if (name.isEmpty() || feed.name.length() > name.length() && feed.name.length() < 55) name = feed.name;
         if ("Other".equals(category) && !"Other".equals(feed.category)) category = feed.category;

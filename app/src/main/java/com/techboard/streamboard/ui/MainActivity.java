@@ -36,7 +36,11 @@ public class MainActivity extends Activity {
     private final LogoLoader logos=new LogoLoader();
     private final ExecutorService pool=Executors.newFixedThreadPool(4);
     private final Handler ui=new Handler(Looper.getMainLooper());
-    private LinearLayout main, panel;
+    private LinearLayout main, panel, navBar, playerHolder, headerBar;
+    private InlinePlayer inlinePlayer;
+    private boolean playerFullscreen=false;
+    private int sidePadding=14;
+    private boolean destroyed=false;
     private TextView summary, activityMessage;
     private ListView listView;
     private ChannelAdapter channelAdapter;
@@ -50,52 +54,97 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().setStatusBarColor(Ui.BG);getWindow().setNavigationBarColor(Ui.BG);
-        store=new ChannelStore(this);render();
-        if(store.rawChannels().isEmpty()&&!store.sources().isEmpty())refreshAll();
+        // Loading a large saved catalog synchronously was blocking Android's UI thread.
+        LinearLayout loading=column();loading.setBackgroundColor(Ui.BG);
+        Ui.padding(loading,this,20,30);
+        loading.addView(Ui.text(this,"STREAMBOARD",23,Ui.TEXT,true));
+        loading.addView(Ui.text(this,"Loading your channel library…",14,Ui.MUTED,false));
+        setContentView(loading);
+        pool.execute(()->{
+            try {
+                ChannelStore loaded=new ChannelStore(getApplicationContext());
+                ui.post(()->{
+                    if(destroyed||isFinishing())return;
+                    store=loaded;render();
+                    if(store.rawChannels().isEmpty()&&!store.sources().isEmpty())refreshAll();
+                });
+            } catch(Exception error) {
+                ui.post(()->{if(!destroyed)Toast.makeText(this,"Library error: "+brief(error),Toast.LENGTH_LONG).show();});
+            }
+        });
     }
-    @Override protected void onDestroy(){pool.shutdownNow();logos.close();super.onDestroy();}
+    @Override protected void onDestroy(){
+        destroyed=true;ui.removeCallbacksAndMessages(null);
+        if(inlinePlayer!=null)inlinePlayer.release();
+        pool.shutdownNow();logos.close();super.onDestroy();
+    }
+    @Override protected void onStop(){super.onStop();if(inlinePlayer!=null)inlinePlayer.pauseForBackground();}
+    @Override protected void onStart(){super.onStart();if(inlinePlayer!=null)inlinePlayer.resumeForeground();}
+    @Override public void onConfigurationChanged(android.content.res.Configuration c){super.onConfigurationChanged(c);
+        if(inlinePlayer!=null)inlinePlayer.onConfigurationChanged(playerFullscreen);
+    }
+    @Override public void onBackPressed(){
+        if(playerFullscreen){setPlayerFullscreen(false);return;}
+        super.onBackPressed();
+    }
     private LinearLayout column(){LinearLayout v=new LinearLayout(this);v.setOrientation(LinearLayout.VERTICAL);return v;}
     private LinearLayout row(){LinearLayout v=new LinearLayout(this);v.setOrientation(LinearLayout.HORIZONTAL);v.setGravity(Gravity.CENTER_VERTICAL);return v;}
     private LinearLayout.LayoutParams lp(int width,int height){return new LinearLayout.LayoutParams(width<0?width:Ui.dp(this,width),height<0?height:Ui.dp(this,height));}
     private void gap(LinearLayout p,int h){View v=new View(this);p.addView(v,lp(1,h));}
+    /** One permanent view tree: do not tear down the video surface on tab/category changes. */
     private void render() {
-        main=column();main.setBackgroundColor(Ui.BG);
-        int side=getResources().getConfiguration().screenWidthDp>=600?26:14;
-        main.setPadding(Ui.dp(this,side),Ui.dp(this,12),Ui.dp(this,side),Ui.dp(this,6));
-        setContentView(main);
-        LinearLayout header=row();
-        TextView monogram=Ui.text(this,"▶",19,Ui.BG,true);monogram.setGravity(Gravity.CENTER);
-        monogram.setBackground(Ui.bg(Ui.PRIMARY,13,this));
-        header.addView(monogram,lp(44,44));
-        LinearLayout identity=column();
-        identity.addView(Ui.text(this,"STREAMBOARD",18,Ui.TEXT,true));
-        summary=Ui.text(this,"",11,Ui.MUTED,false);identity.addView(summary);
-        LinearLayout.LayoutParams h=new LinearLayout.LayoutParams(0,-2,1);h.setMargins(Ui.dp(this,11),0,0,0);
-        header.addView(identity,h);
-        TextView version=Ui.text(this,"v1.1",11,Ui.PRIMARY,true);
-        version.setBackground(Ui.bg(Ui.PANEL,9,this));Ui.padding(version,this,10,8);
-        header.addView(version);
-        main.addView(header);gap(main,15);
-        panel=column();
-        main.addView(panel,new LinearLayout.LayoutParams(-1,0,1));
-        if(tab.equals("watch") || tab.equals("favorites"))renderWatch();
+        if(store==null)return;
+        if(main==null){
+            main=column();main.setBackgroundColor(Ui.BG);
+            sidePadding=getResources().getConfiguration().screenWidthDp>=600?26:14;
+            main.setPadding(Ui.dp(this,sidePadding),Ui.dp(this,10),Ui.dp(this,sidePadding),Ui.dp(this,6));
+            setContentView(main);
+            headerBar=row();
+            TextView icon=Ui.text(this,"▶",19,Ui.BG,true);icon.setGravity(Gravity.CENTER);
+            icon.setBackground(Ui.bg(Ui.PRIMARY,12,this));headerBar.addView(icon,lp(42,42));
+            LinearLayout identity=column();identity.addView(Ui.text(this,"STREAMBOARD",18,Ui.TEXT,true));
+            summary=Ui.text(this,"",11,Ui.MUTED,false);identity.addView(summary);
+            LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(0,-2,1);
+            hp.setMargins(Ui.dp(this,10),0,0,0);headerBar.addView(identity,hp);
+            headerBar.addView(Ui.text(this,"v1.1.1",11,Ui.PRIMARY,true));
+            main.addView(headerBar);gap(main,8);
+            playerHolder=column();playerHolder.setVisibility(View.GONE);
+            main.addView(playerHolder,new LinearLayout.LayoutParams(-1,-2));
+            panel=column();main.addView(panel,new LinearLayout.LayoutParams(-1,0,1));
+            navBar=row();navBar.setBackground(Ui.bg(Ui.PANEL,14,this));
+            Ui.padding(navBar,this,5,5);
+            main.addView(navBar);inlinePlayer=new InlinePlayer(this,store,playerHolder,this::setPlayerFullscreen,this::navigateChannel);
+        }
+        panel.removeAllViews();
+        if(tab.equals("watch")||tab.equals("favorites"))renderWatch();
         else if(tab.equals("manage"))renderManage();
         else renderPlaylists();
-        gap(main,7);
-        LinearLayout navigation=row();
-        navigation.setBackground(Ui.bg(Ui.PANEL,16,this));Ui.padding(navigation,this,5,5);
-        String[] labels={"◉  Live","★  Saved","☑  Access","≡  Sources"};
+        navBar.removeAllViews();
+        String[] labels={"◉ Live","★ Saved","☑ Access","≡ Sources"};
         String[] names={"watch","favorites","manage","playlists"};
         for(int i=0;i<labels.length;i++){
             final String selection=names[i];Button btn=Ui.button(this,labels[i],tab.equals(selection));
             btn.setTextSize(11);
-            LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(0,Ui.dp(this,45),1);
+            LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(0,Ui.dp(this,43),1);
             params.setMargins(Ui.dp(this,2),0,Ui.dp(this,2),0);
-            navigation.addView(btn,params);
+            navBar.addView(btn,params);
             btn.setOnClickListener(v->{tab=selection;category="All categories";search="";render();});
         }
-        main.addView(navigation);
         updateSummary();
+        if(inlinePlayer!=null)inlinePlayer.revalidate();
+    }
+    private void setPlayerFullscreen(boolean enabled){
+        playerFullscreen=enabled;
+        if(main==null)return;
+        headerBar.setVisibility(enabled?View.GONE:View.VISIBLE);
+        panel.setVisibility(enabled?View.GONE:View.VISIBLE);
+        navBar.setVisibility(enabled?View.GONE:View.VISIBLE);
+        playerHolder.setLayoutParams(enabled
+            ?new LinearLayout.LayoutParams(-1,0,1)
+            :new LinearLayout.LayoutParams(-1,-2));
+        main.setPadding(enabled?0:Ui.dp(this,sidePadding),enabled?0:Ui.dp(this,10),
+            enabled?0:Ui.dp(this,sidePadding),enabled?0:Ui.dp(this,6));
+        if(inlinePlayer!=null)inlinePlayer.onConfigurationChanged(enabled);
     }
     private void updateSummary() {
         if(summary==null)return;
@@ -175,9 +224,14 @@ public class MainActivity extends Activity {
             chip.setOnClickListener(v->{category=option;render();});
         }
         scroller.addView(chips);panel.addView(scroller);gap(panel,9);
+        final Runnable[] pending={null};
         field.addTextChangedListener(new TextWatcher(){
             @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
-            @Override public void onTextChanged(CharSequence value,int start,int before,int count){search=value.toString();updateList();}
+            @Override public void onTextChanged(CharSequence value,int start,int before,int count){
+                search=value.toString();
+                if(pending[0]!=null)ui.removeCallbacks(pending[0]);
+                pending[0]=()->{if(!destroyed)updateList();};ui.postDelayed(pending[0],140);
+            }
             @Override public void afterTextChanged(Editable e){}
         });
     }
@@ -221,7 +275,8 @@ public class MainActivity extends Activity {
             .setNegativeButton("Cancel",null)
             .setPositiveButton(action,(d,w)->{
                 for(ChannelGroup group:selected)store.setAllowed(group.id,value);
-                updateSummary();updateList();toast("Updated "+selected.size()+" channels");
+                updateSummary();updateList();if(inlinePlayer!=null)inlinePlayer.revalidate();
+                toast("Updated "+selected.size()+" channels");
             }).show();
     }
     private void openChannelOptions(ChannelGroup group) {
@@ -232,7 +287,8 @@ public class MainActivity extends Activity {
         options.add(store.isFavorite(group)?"Remove favorite":"Add favorite");
         new AlertDialog.Builder(this).setTitle(group.name).setItems(options.toArray(new String[0]),(d,which)->{
             switch(which) {
-                case 0:store.setAllowed(group.id,!group.allowed);updateSummary();updateList();break;
+                case 0:store.setAllowed(group.id,!group.allowed);updateSummary();updateList();
+                    if(inlinePlayer!=null)inlinePlayer.revalidate();break;
                 case 1:openPlayer(group);break;
                 case 2:choosePreferred(group);break;
                 case 3:checkGroup(group);break;
@@ -272,7 +328,23 @@ public class MainActivity extends Activity {
                 .setPositiveButton("OK",null).show();return;
         }
         getPreferences(MODE_PRIVATE).edit().putString("last_channel",latest.id).apply();
-        Intent intent=new Intent(this,PlayerActivity.class);intent.putExtra("channel_id",latest.id);startActivity(intent);
+        if(inlinePlayer!=null)inlinePlayer.play(latest);
+    }
+    private void navigateChannel(int delta){
+        if(inlinePlayer==null||store==null)return;
+        List<ChannelGroup> options=new ArrayList<>();
+        // Respect the current search/category filter while browsing on the Live tab.
+        if((tab.equals("watch")||tab.equals("favorites"))&&!filtered.isEmpty()){
+            for(ChannelGroup g:filtered)if(g.allowed&&store.categoryVisible(g.category))options.add(g);
+        }else for(ChannelGroup g:store.mergedChannels()){
+            if(g.allowed&&store.categoryVisible(g.category))options.add(g);
+        }
+        if(options.isEmpty())return;
+        int current=-1;for(int i=0;i<options.size();i++){
+            if(options.get(i).id.equals(inlinePlayer.currentId())){current=i;break;}
+        }
+        int next=current<0?(delta>0?0:options.size()-1):Math.floorMod(current+delta,options.size());
+        openPlayer(options.get(next));
     }
     private void renderPlaylists() {
         heading(panel,"Playlist sources","Import M3U URLs. Refresh sources independently; existing channels are kept if a refresh fails.");
@@ -293,9 +365,14 @@ public class MainActivity extends Activity {
             String status=playlistState.getOrDefault(source.id,"");
             if(!status.isEmpty())card.addView(Ui.text(this,status,12,Ui.PRIMARY,false));
             gap(card,7);
-            LinearLayout actions=row();Button update=Ui.button(this,"Refresh",false);Button remove=Ui.button(this,"Remove",false);
-            actions.addView(update,lp(105,39));
-            LinearLayout.LayoutParams rm=lp(105,39);rm.setMargins(Ui.dp(this,7),0,0,0);actions.addView(remove,rm);
+            LinearLayout actions=row();Button update=Ui.button(this,"Refresh",false);Button inspect=Ui.button(this,"Inspect",false);
+            Button remove=Ui.button(this,"Remove",false);
+            actions.addView(update,new LinearLayout.LayoutParams(0,Ui.dp(this,39),1));
+            LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(0,Ui.dp(this,39),1);ip.setMargins(Ui.dp(this,5),0,0,0);
+            actions.addView(inspect,ip);
+            LinearLayout.LayoutParams rm=new LinearLayout.LayoutParams(0,Ui.dp(this,39),1);
+            rm.setMargins(Ui.dp(this,5),0,0,0);actions.addView(remove,rm);
+            inspect.setOnClickListener(v->inspectSource(source));
             update.setOnClickListener(v->refreshSource(source));
             remove.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("Remove "+source.title+"?")
                 .setMessage("Only channels from this playlist will be removed. Approvals for other channels remain.")
@@ -303,6 +380,40 @@ public class MainActivity extends Activity {
             card.addView(actions);LinearLayout.LayoutParams margins=lp(-1,-2);margins.setMargins(0,0,0,Ui.dp(this,9));items.addView(card,margins);
         }
         scroll.addView(items);panel.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+    }
+    /** Explain what a fetched M3U actually contains; avoid fabricated channel counts. */
+    private void inspectSource(PlaylistSource source) {
+        List<Channel> feeds=new ArrayList<>();
+        for(Channel c:store.rawChannels())if(source.id.equals(c.sourceId))feeds.add(c);
+        Map<String,Integer> categories=new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        Map<String,Integer> hosts=new HashMap<>();
+        int logos=0, guide=0, hls=0;Set<String> unique=new HashSet<>();
+        for(Channel c:feeds){
+            categories.merge(c.category.isEmpty()?"Other":c.category,1,Integer::sum);
+            hosts.merge(host(c.streamUrl),1,Integer::sum);
+            if(!c.logoUrl.isEmpty())logos++;
+            if(!c.tvgId.isEmpty())guide++;
+            if(c.streamUrl.toLowerCase(Locale.ROOT).contains(".m3u8"))hls++;
+            unique.add(c.streamUrl);
+        }
+        List<Map.Entry<String,Integer>> domains=new ArrayList<>(hosts.entrySet());
+        domains.sort((a,b)->Integer.compare(b.getValue(),a.getValue()));
+        StringBuilder report=new StringBuilder();
+        report.append("Playlist: ").append(source.title).append("\nURL: ").append(source.url)
+            .append("\n\nIndexed entries: ").append(feeds.size())
+            .append("\nUnique URLs: ").append(unique.size())
+            .append("\nEntries with logos: ").append(logos)
+            .append("\nEntries with TV guide IDs: ").append(guide)
+            .append("\nURLs containing .m3u8: ").append(hls)
+            .append("\n\nCategories (from last successful import):\n");
+        for(Map.Entry<String,Integer> e:categories.entrySet())report.append("  ").append(e.getKey()).append(": ").append(e.getValue()).append('\n');
+        report.append("\nTop stream domains:\n");
+        for(int i=0;i<Math.min(10,domains.size());i++)report.append("  ")
+            .append(domains.get(i).getKey()).append(": ").append(domains.get(i).getValue()).append('\n');
+        report.append("\nThese are imported metadata counts, NOT checks that video is currently playing. ")
+            .append("An HLS URL may require a token, authentication, or a particular region.");
+        new AlertDialog.Builder(this).setTitle("Playlist inspection").setMessage(report.toString())
+            .setPositiveButton("Close",null).show();
     }
     private void addPlaylistDialog() {
         LinearLayout container=column();Ui.padding(container,this,18,10);
@@ -354,7 +465,7 @@ public class MainActivity extends Activity {
     private void testAllowed() {
         List<ChannelGroup> permitted=new ArrayList<>();for(ChannelGroup g:store.mergedChannels())if(g.allowed && store.categoryVisible(g.category))permitted.add(g);
         if(permitted.isEmpty()){toast("Approve channels first");return;}
-        if(permitted.size()>250) {toast("Checking the first 250 approved channels");permitted=permitted.subList(0,250);}
+        if(permitted.size()>40) {toast("Checking 40 channels per batch to keep the app responsive");permitted=permitted.subList(0,40);}
         int total=permitted.size();AtomicInteger done=new AtomicInteger();
         for(ChannelGroup g:permitted){
             pool.submit(()->{
@@ -420,6 +531,7 @@ public class MainActivity extends Activity {
                 h.toggle.setOnCheckedChangeListener(null);h.toggle.setChecked(g.allowed);
                 h.toggle.setOnCheckedChangeListener((button,on)->{
                     store.setAllowed(g.id,on);g.allowed=on;updateSummary();
+                    if(inlinePlayer!=null)inlinePlayer.revalidate();
                 });
             }else{
                 h.star.setText(store.isFavorite(g)?"★":"☆");
