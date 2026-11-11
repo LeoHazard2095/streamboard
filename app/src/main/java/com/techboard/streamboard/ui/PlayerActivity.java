@@ -3,6 +3,8 @@ package com.techboard.streamboard.ui;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
+import android.widget.FrameLayout;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -15,6 +17,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.Format;
+import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
@@ -44,7 +48,12 @@ public final class PlayerActivity extends Activity implements Player.Listener {
     private ChannelGroup channel;
     private ExoPlayer player;
     private PlayerView video;
-    private TextView title, status, sourceLabel;
+    private TextView title, status, sourceLabel, bandwidthLabel;
+    private LinearLayout root, heading, actionRow, details;
+    private FrameLayout videoFrame;
+    private Button exitFull;
+    private boolean fullscreen=false;
+    private int heightLimit=0;
     private int current=-1;
     private long bufferingSince=0;
     private boolean disposed=false;
@@ -53,6 +62,11 @@ public final class PlayerActivity extends Activity implements Player.Listener {
         if(player.getPlayWhenReady() && player.getPlaybackState()==Player.STATE_BUFFERING
           && bufferingSince>0 && SystemClock.elapsedRealtime()-bufferingSince>=STALL_MS) {
             tryNext("Stream stalled for 30 seconds");
+        }
+        if(bandwidthLabel!=null && player.getPlaybackState()==Player.STATE_READY){
+            Format format=player.getVideoFormat();
+            bandwidthLabel.setText((format==null||format.height<1?"Live":format.height+"p") +
+                "  ·  "+(heightLimit==0?"Adaptive (Auto)":"Up to "+heightLimit+"p"));
         }
         handler.postDelayed(this,WATCHDOG_MS);
     }};
@@ -73,39 +87,102 @@ public final class PlayerActivity extends Activity implements Player.Listener {
         setupViews();
         DefaultHttpDataSource.Factory http=new DefaultHttpDataSource.Factory()
             .setConnectTimeoutMs(12000).setReadTimeoutMs(15000)
-            .setAllowCrossProtocolRedirects(true).setUserAgent("StreamBoardIPTV/1.0 Android");
+            .setAllowCrossProtocolRedirects(true).setUserAgent("StreamBoardIPTV/1.1 Android");
         player=new ExoPlayer.Builder(this)
             .setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(this,http)))
             .build();
         player.addListener(this);video.setPlayer(player);
+        video.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+        applyQuality(0);
         playIndex(0,"Starting stream",true);
         handler.postDelayed(watchdog,WATCHDOG_MS);
     }
     private void setupViews(){
-        LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Ui.BG);
-        Ui.padding(root,this,12,9);setContentView(root);
-        LinearLayout heading=new LinearLayout(this);heading.setOrientation(LinearLayout.HORIZONTAL);heading.setGravity(Gravity.CENTER_VERTICAL);
+        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Ui.BG);
+        setContentView(root);
+        heading=new LinearLayout(this);heading.setOrientation(LinearLayout.HORIZONTAL);heading.setGravity(Gravity.CENTER_VERTICAL);
+        Ui.padding(heading,this,13,9);
         Button back=Ui.button(this,"‹ Back",false);heading.addView(back);
         back.setOnClickListener(v->finish());
         title=Ui.text(this,channel.name,18,Ui.TEXT,true);
-        LinearLayout.LayoutParams t=new LinearLayout.LayoutParams(0,-2,1);t.setMargins(Ui.dp(this,10),0,0,0);heading.addView(title,t);
+        LinearLayout.LayoutParams titleLp=new LinearLayout.LayoutParams(0,-2,1);titleLp.setMargins(Ui.dp(this,10),0,0,0);
+        heading.addView(title,titleLp);
+        heading.addView(Ui.text(this,"● LIVE",11,Ui.PRIMARY,true));
         root.addView(heading);
-        video=new PlayerView(this);video.setUseController(true);video.setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS);
-        LinearLayout.LayoutParams videoLp=new LinearLayout.LayoutParams(-1,0,1);
-        videoLp.setMargins(0,Ui.dp(this,10),0,Ui.dp(this,10));root.addView(video,videoLp);
-        status=Ui.text(this,"Connecting...",13,Ui.PRIMARY,true);root.addView(status);
-        sourceLabel=Ui.text(this,"",12,Ui.MUTED,false);root.addView(sourceLabel);
-        LinearLayout buttons=new LinearLayout(this);buttons.setGravity(Gravity.CENTER_VERTICAL);
-        Button choose=Ui.button(this,"Choose source",false);
-        Button next=Ui.button(this,"Try next source",true);
-        LinearLayout.LayoutParams chooseLp=new LinearLayout.LayoutParams(0,Ui.dp(this,44),1);chooseLp.setMargins(0,Ui.dp(this,10),Ui.dp(this,8),0);
-        buttons.addView(choose,chooseLp);
-        LinearLayout.LayoutParams nextLp=new LinearLayout.LayoutParams(0,Ui.dp(this,44),1);nextLp.setMargins(0,Ui.dp(this,10),0,0);
-        buttons.addView(next,nextLp);root.addView(buttons);
-        choose.setOnClickListener(v->chooseSource());next.setOnClickListener(v->tryNext("Manual source switch"));
-        TextView note=Ui.text(this,"Auto-switches on playback failure or prolonged buffering. It cannot verify that the expected show is on air.",11,Ui.MUTED,false);
-        root.addView(note);note.setPadding(0,Ui.dp(this,7),0,0);
+        videoFrame=new FrameLayout(this);videoFrame.setBackgroundColor(android.graphics.Color.BLACK);
+        video=new PlayerView(this);video.setUseController(true);
+        video.setControllerAutoShow(true);video.setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS);
+        videoFrame.addView(video,new FrameLayout.LayoutParams(-1,-1));
+        exitFull=Ui.button(this,"⤢ Exit fullscreen",true);
+        FrameLayout.LayoutParams exit=new FrameLayout.LayoutParams(Ui.dp(this,142),Ui.dp(this,42),Gravity.RIGHT|Gravity.TOP);
+        exit.setMargins(0,Ui.dp(this,10),Ui.dp(this,12),0);
+        videoFrame.addView(exitFull,exit);exitFull.setVisibility(View.GONE);
+        exitFull.setOnClickListener(v->setFullscreen(false));
+        root.addView(videoFrame,new LinearLayout.LayoutParams(-1,0,1));
+        status=Ui.text(this,"Connecting...",13,Ui.PRIMARY,true);
+        sourceLabel=Ui.text(this,"",12,Ui.MUTED,false);
+        bandwidthLabel=Ui.text(this,"Adaptive quality enabled",12,Ui.MUTED,false);
+        details=new LinearLayout(this);details.setOrientation(LinearLayout.VERTICAL);Ui.padding(details,this,15,9);
+        details.addView(status);details.addView(sourceLabel);details.addView(bandwidthLabel);root.addView(details);
+        actionRow=new LinearLayout(this);actionRow.setGravity(Gravity.CENTER_VERTICAL);Ui.padding(actionRow,this,9,8);
+        Button quality=Ui.button(this,"⚙  Quality",false);
+        Button sources=Ui.button(this,"⇄  Sources",false);
+        Button full=Ui.button(this,"⛶  Fullscreen",true);
+        actionRow.addView(quality,buttonParams());actionRow.addView(sources,buttonParams());actionRow.addView(full,buttonParams());
+        root.addView(actionRow);
+        quality.setOnClickListener(v->chooseQuality());sources.setOnClickListener(v->chooseSource());
+        full.setOnClickListener(v->setFullscreen(true));
+        TextView note=Ui.text(this,"Adaptive bitrate when available · automatic source failover",11,Ui.MUTED,false);
+        note.setGravity(Gravity.CENTER);note.setPadding(0,Ui.dp(this,3),0,Ui.dp(this,8));root.addView(note);
+        note.setTag("player_note");
     }
+    private LinearLayout.LayoutParams buttonParams(){
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,Ui.dp(this,45),1);
+        p.setMargins(Ui.dp(this,4),0,Ui.dp(this,4),0);return p;
+    }
+    private void chooseQuality(){
+        String[] names={"Auto · adaptive", "Up to 360p · low data", "Up to 480p", "Up to 720p", "Up to 1080p"};
+        int[] limits={0,360,480,720,1080};
+        int selected=0;for(int i=1;i<limits.length;i++)if(heightLimit==limits[i])selected=i;
+        new AlertDialog.Builder(this).setTitle("Streaming quality")
+            .setSingleChoiceItems(names,selected,(dialog,which)->{applyQuality(limits[which]);dialog.dismiss();})
+            .setNegativeButton("Close",null).show();
+    }
+    private void applyQuality(int height){
+        heightLimit=height;
+        if(player==null)return;
+        androidx.media3.common.TrackSelectionParameters.Builder track=player.getTrackSelectionParameters().buildUpon();
+        track.setMaxVideoSize(Integer.MAX_VALUE,height==0?Integer.MAX_VALUE:height);
+        player.setTrackSelectionParameters(track.build());
+        if(bandwidthLabel!=null)bandwidthLabel.setText(height==0?"Auto quality · follows available HLS variants":"Resolution cap: "+height+"p");
+    }
+    private void setFullscreen(boolean full){
+        fullscreen=full;
+        if(full){
+            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        }else{
+            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        }
+        updateFullscreen();
+    }
+    private void updateFullscreen(){
+        if(root==null)return;
+        heading.setVisibility(fullscreen?View.GONE:View.VISIBLE);
+        actionRow.setVisibility(fullscreen?View.GONE:View.VISIBLE);
+        details.setVisibility(fullscreen?View.GONE:View.VISIBLE);
+        for(int i=0;i<root.getChildCount();i++){
+            View child=root.getChildAt(i);
+            if("player_note".equals(child.getTag()))child.setVisibility(fullscreen?View.GONE:View.VISIBLE);
+        }
+        exitFull.setVisibility(fullscreen?View.VISIBLE:View.GONE);
+        videoFrame.requestLayout();
+        if(fullscreen)video.showController();
+    }
+    @Override public void onConfigurationChanged(Configuration config){super.onConfigurationChanged(config);updateFullscreen();}
+    @Override public void onBackPressed(){if(fullscreen)setFullscreen(false);else super.onBackPressed();}
     private void chooseSource(){
         String[] items=new String[feeds.size()];
         for(int i=0;i<feeds.size();i++)items[i]=(i==current?"▶ ":"")+feeds.get(i).sourceName+" · "+hostname(feeds.get(i).streamUrl);
@@ -146,7 +223,7 @@ public final class PlayerActivity extends Activity implements Player.Listener {
     @Override public void onPlaybackStateChanged(int state){
         if(state==Player.STATE_BUFFERING){
             if(bufferingSince==0)bufferingSince=SystemClock.elapsedRealtime();
-            status.setText("Buffering...");
+            status.setText("Buffering · Auto quality adjusting...");
         } else if(state==Player.STATE_READY){
             bufferingSince=0;status.setText("Playing  •  "+(current+1)+" of "+feeds.size()+" sources");
         }else if(state==Player.STATE_ENDED){tryNext("Stream ended");}

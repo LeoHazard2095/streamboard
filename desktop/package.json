@@ -1,0 +1,29 @@
+{
+  "name": "streamboard-desktop",
+  "productName": "StreamBoard IPTV",
+  "version": "1.1.0",
+  "private": true,
+  "description": "StreamBoard multi-source IPTV desktop companion",
+  "main": "main.js",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "prepare-player": "node scripts/copy-hls.js",
+    "dist:win": "npm run prepare-player && electron-builder --win nsis --x64"
+  },
+  "dependencies": {
+    "hls.js": "1.6.12"
+  },
+  "devDependencies": {
+    "electron": "35.2.2",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.techboard.streamboard.desktop",
+    "productName": "StreamBoard IPTV",
+    "files": ["main.js", "preload.js", "src/**/*"],
+    "directories": {"output": "dist"},
+    "win": {"target": ["nsis"]},
+    "nsis": {"oneClick": false, "allowToChangeInstallationDirectory": true},
+    "artifactName": "StreamBoard-IPTV-Setup-${version}.${ext}"
+  }
+}

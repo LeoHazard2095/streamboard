@@ -9,12 +9,13 @@ import android.widget.Button;
 import android.widget.TextView;
 
 final class Ui {
-    static final int BG=Color.rgb(11,18,32);
-    static final int PANEL=Color.rgb(24,35,52);
-    static final int PANEL_ALT=Color.rgb(33,46,65);
-    static final int PRIMARY=Color.rgb(43,209,160);
+    static final int BG=Color.rgb(9,15,27);
+    static final int PANEL=Color.rgb(18,28,45);
+    static final int PANEL_ALT=Color.rgb(29,41,61);
+    static final int PRIMARY=Color.rgb(45,218,171);
     static final int TEXT=Color.rgb(240,245,250);
-    static final int MUTED=Color.rgb(159,176,197);
+    static final int MUTED=Color.rgb(147,164,189);
+    static final int BORDER=Color.rgb(50,65,86);
     static final int RED=Color.rgb(248,113,113);
     static int dp(Context c,float dp) {return (int)(dp*c.getResources().getDisplayMetrics().density+0.5f);}
     static GradientDrawable bg(int color,int radius,Context c) {

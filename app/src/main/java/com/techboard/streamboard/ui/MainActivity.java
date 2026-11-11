@@ -59,29 +59,42 @@ public class MainActivity extends Activity {
     private LinearLayout.LayoutParams lp(int width,int height){return new LinearLayout.LayoutParams(width<0?width:Ui.dp(this,width),height<0?height:Ui.dp(this,height));}
     private void gap(LinearLayout p,int h){View v=new View(this);p.addView(v,lp(1,h));}
     private void render() {
-        main=column();main.setBackgroundColor(Ui.BG);Ui.padding(main,this,16,13);setContentView(main);
+        main=column();main.setBackgroundColor(Ui.BG);
+        int side=getResources().getConfiguration().screenWidthDp>=600?26:14;
+        main.setPadding(Ui.dp(this,side),Ui.dp(this,12),Ui.dp(this,side),Ui.dp(this,6));
+        setContentView(main);
         LinearLayout header=row();
-        LinearLayout headText=column();
-        TextView brand=Ui.text(this,"◉  StreamBoard",23,Ui.TEXT,true);
-        headText.addView(brand);
-        summary=Ui.text(this,"",12,Ui.MUTED,false);headText.addView(summary);
-        header.addView(headText,new LinearLayout.LayoutParams(0,-2,1));
-        TextView version=Ui.text(this,"v1.0.0",11,Ui.PRIMARY,true);header.addView(version);
-        main.addView(header);gap(main,17);
-        LinearLayout nav=row();
-        String[] tabs={"Watch","Channels","Playlists"};String[] keys={"watch","manage","playlists"};
-        for(int i=0;i<tabs.length;i++){
-            final String selection=keys[i];Button b=Ui.button(this,tabs[i],tab.equals(selection));
-            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,Ui.dp(this,43),1);
-            p.setMargins(Ui.dp(this,2),0,Ui.dp(this,2),0);nav.addView(b,p);
-            b.setOnClickListener(v->{tab=selection;category="All categories";search="";render();});
-        }
-        main.addView(nav);gap(main,13);
-        panel=column();panel.setBackground(Ui.bg(Ui.PANEL,16,this));Ui.padding(panel,this,12,12);
+        TextView monogram=Ui.text(this,"▶",19,Ui.BG,true);monogram.setGravity(Gravity.CENTER);
+        monogram.setBackground(Ui.bg(Ui.PRIMARY,13,this));
+        header.addView(monogram,lp(44,44));
+        LinearLayout identity=column();
+        identity.addView(Ui.text(this,"STREAMBOARD",18,Ui.TEXT,true));
+        summary=Ui.text(this,"",11,Ui.MUTED,false);identity.addView(summary);
+        LinearLayout.LayoutParams h=new LinearLayout.LayoutParams(0,-2,1);h.setMargins(Ui.dp(this,11),0,0,0);
+        header.addView(identity,h);
+        TextView version=Ui.text(this,"v1.1",11,Ui.PRIMARY,true);
+        version.setBackground(Ui.bg(Ui.PANEL,9,this));Ui.padding(version,this,10,8);
+        header.addView(version);
+        main.addView(header);gap(main,15);
+        panel=column();
         main.addView(panel,new LinearLayout.LayoutParams(-1,0,1));
-        if(tab.equals("watch"))renderWatch();
+        if(tab.equals("watch") || tab.equals("favorites"))renderWatch();
         else if(tab.equals("manage"))renderManage();
         else renderPlaylists();
+        gap(main,7);
+        LinearLayout navigation=row();
+        navigation.setBackground(Ui.bg(Ui.PANEL,16,this));Ui.padding(navigation,this,5,5);
+        String[] labels={"◉  Live","★  Saved","☑  Access","≡  Sources"};
+        String[] names={"watch","favorites","manage","playlists"};
+        for(int i=0;i<labels.length;i++){
+            final String selection=names[i];Button btn=Ui.button(this,labels[i],tab.equals(selection));
+            btn.setTextSize(11);
+            LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(0,Ui.dp(this,45),1);
+            params.setMargins(Ui.dp(this,2),0,Ui.dp(this,2),0);
+            navigation.addView(btn,params);
+            btn.setOnClickListener(v->{tab=selection;category="All categories";search="";render();});
+        }
+        main.addView(navigation);
         updateSummary();
     }
     private void updateSummary() {
@@ -92,19 +105,34 @@ public class MainActivity extends Activity {
         summary.setText(groups.size()+" channels  ·  "+approved+" approved  ·  "+alternatives+" sources");
     }
     private void heading(LinearLayout parent,String title,String detail) {
-        parent.addView(Ui.text(this,title,20,Ui.TEXT,true));gap(parent,3);
+        parent.addView(Ui.text(this,title,22,Ui.TEXT,true));gap(parent,3);
         TextView desc=Ui.text(this,detail,12,Ui.MUTED,false);parent.addView(desc);gap(parent,12);
     }
     private void renderWatch() {
-        heading(panel,"Live TV","Only allowed channels in visible categories appear here.");
-        LinearLayout controls=row();
-        Button test=Ui.button(this,"Check allowed streams",false);
-        controls.addView(test);test.setOnClickListener(v->testAllowed());panel.addView(controls);gap(panel,8);
+        boolean favorites=tab.equals("favorites");
+        LinearLayout hero=column();hero.setBackground(Ui.bg(Ui.PANEL,17,this));Ui.padding(hero,this,15,14);
+        TextView kicker=Ui.text(this,favorites?"YOUR COLLECTION":"LIVE TELEVISION",11,Ui.PRIMARY,true);hero.addView(kicker);
+        gap(hero,6);
+        hero.addView(Ui.text(this,favorites?"Favorite channels":"Watch what you love",22,Ui.TEXT,true));
+        TextView hint=Ui.text(this,favorites?"Quick access to saved and approved channels":"Only your approved channels are shown. Automatic backup sources keep playback going.",12,Ui.MUTED,false);
+        hero.addView(hint);gap(hero,10);
+        LinearLayout heroActions=row();
+        if(!favorites){
+            Button last=Ui.button(this,"▶  Resume",true);
+            heroActions.addView(last,lp(118,38));
+            last.setOnClickListener(v->{String id=getPreferences(MODE_PRIVATE).getString("last_channel","");
+                ChannelGroup group=store.findGroup(id);if(group!=null)openPlayer(group);else toast("Select a channel to start watching");});
+        }
+        Button check=Ui.button(this,"↻  Check streams",false);
+        LinearLayout.LayoutParams cp=lp(-2,38);cp.setMargins(Ui.dp(this,8),0,0,0);
+        heroActions.addView(check,cp);check.setOnClickListener(v->testAllowed());
+        hero.addView(heroActions);
+        panel.addView(hero);gap(panel,12);
         renderFilters();
         setupList(false);
     }
     private void renderManage() {
-        heading(panel,"Channel access","Approve individual channels. Hide whole categories independently.");
+        heading(panel,"Manage access","Choose visible categories and allow individual channels. New imports stay blocked.");
         TextView catLabel=Ui.text(this,"VISIBLE CATEGORIES  (tap to change)",11,Ui.MUTED,true);panel.addView(catLabel);gap(panel,7);
         HorizontalScrollView horizontal=new HorizontalScrollView(this);horizontal.setHorizontalScrollBarEnabled(false);
         LinearLayout categories=row();
@@ -129,34 +157,34 @@ public class MainActivity extends Activity {
         return new ArrayList<>(cats);
     }
     private void renderFilters() {
-        LinearLayout filters=row();
-        EditText field=new EditText(this);field.setSingleLine(true);field.setTextSize(14);field.setHint("Search channels");
+        EditText field=new EditText(this);field.setSingleLine(true);field.setTextSize(14);
+        field.setHint("⌕  Find channel, category or language");
         field.setTextColor(Ui.TEXT);field.setHintTextColor(Ui.MUTED);
-        field.setBackground(Ui.bg(Ui.PANEL_ALT,10,this));Ui.padding(field,this,10,9);field.setText(search);
-        LinearLayout.LayoutParams searchP=new LinearLayout.LayoutParams(0,Ui.dp(this,46),1);searchP.setMargins(0,0,Ui.dp(this,8),0);
-        filters.addView(field,searchP);
-        categorySpinner=new Spinner(this);
-        List<String> options=new ArrayList<>();options.add("All categories");options.addAll(allCategories());
-        ArrayAdapter<String> spinnerAdapter=new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,options){
-            @Override public View getView(int pos,View reused,ViewGroup parent){TextView t=(TextView)super.getView(pos,reused,parent);t.setTextColor(Ui.TEXT);t.setTextSize(12);return t;}
-        };
-        categorySpinner.setAdapter(spinnerAdapter);
-        int selected=options.indexOf(category);categorySpinner.setSelection(Math.max(0,selected));
-        filters.addView(categorySpinner,lp(130,46));panel.addView(filters);gap(panel,10);
+        field.setBackground(Ui.bg(Ui.PANEL,12,this));Ui.padding(field,this,13,11);
+        field.setText(search);
+        panel.addView(field,new LinearLayout.LayoutParams(-1,Ui.dp(this,49)));gap(panel,9);
+        HorizontalScrollView scroller=new HorizontalScrollView(this);scroller.setHorizontalScrollBarEnabled(false);
+        LinearLayout chips=row();
+        List<String> categories=new ArrayList<>();categories.add("All categories");
+        for(String candidate:allCategories())if(tab.equals("manage") || store.categoryVisible(candidate))categories.add(candidate);
+        if(!categories.contains(category))category="All categories";
+        for(String option:categories){
+            Button chip=Ui.button(this,option.equals("All categories")?"All":option,option.equals(category));
+            chip.setTextSize(12);
+            LinearLayout.LayoutParams p=lp(-2,37);p.setMargins(0,0,Ui.dp(this,7),0);chips.addView(chip,p);
+            chip.setOnClickListener(v->{category=option;render();});
+        }
+        scroller.addView(chips);panel.addView(scroller);gap(panel,9);
         field.addTextChangedListener(new TextWatcher(){
-            @Override public void beforeTextChanged(CharSequence s,int st,int count,int after){}
-            @Override public void onTextChanged(CharSequence s,int st,int before,int count){search=s.toString();updateList();}
+            @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
+            @Override public void onTextChanged(CharSequence value,int start,int before,int count){search=value.toString();updateList();}
             @Override public void afterTextChanged(Editable e){}
-        });
-        categorySpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){
-            @Override public void onItemSelected(android.widget.AdapterView<?> parent,View view,int position,long id){category=options.get(position);updateList();}
-            @Override public void onNothingSelected(android.widget.AdapterView<?> parent){}
         });
     }
     private void setupList(boolean manage) {
         channelAdapter=new ChannelAdapter(manage);
         listView=new ListView(this);listView.setDivider(null);listView.setCacheColorHint(Color.TRANSPARENT);
-        listView.setBackgroundColor(Color.TRANSPARENT);listView.setAdapter(channelAdapter);
+        listView.setBackgroundColor(Color.TRANSPARENT);listView.setFastScrollEnabled(true);listView.setAdapter(channelAdapter);
         listView.setOnItemClickListener((p,v,pos,id)->{
             if(pos>=filtered.size())return;
             ChannelGroup g=filtered.get(pos);
@@ -169,14 +197,16 @@ public class MainActivity extends Activity {
         updateList();
     }
     private void updateList() {
-        if(channelAdapter==null||listView==null||!(tab.equals("watch")||tab.equals("manage")))return;
+        if(channelAdapter==null||listView==null||!(tab.equals("watch")||tab.equals("favorites")||tab.equals("manage")))return;
         filtered.clear();
         for(ChannelGroup group:store.mergedChannels()) {
-            if(tab.equals("watch")&&(!group.allowed||!store.categoryVisible(group.category)))continue;
+            if((tab.equals("watch") || tab.equals("favorites"))&&(!group.allowed||!store.categoryVisible(group.category)))continue;
+            if(tab.equals("favorites")&&!store.isFavorite(group))continue;
             if(!"All categories".equals(category)&&!category.equals(group.category))continue;
             if(!search.trim().isEmpty()){
                 String q=search.toLowerCase(Locale.ROOT);
-                if(!group.name.toLowerCase(Locale.ROOT).contains(q) && !group.category.toLowerCase(Locale.ROOT).contains(q))continue;
+                if(!group.name.toLowerCase(Locale.ROOT).contains(q) && !group.category.toLowerCase(Locale.ROOT).contains(q)
+                    && !group.language.toLowerCase(Locale.ROOT).contains(q))continue;
             }
             filtered.add(group);
         }
@@ -241,6 +271,7 @@ public class MainActivity extends Activity {
                 .setMessage("Enable this channel and its category in Channels before playing.")
                 .setPositiveButton("OK",null).show();return;
         }
+        getPreferences(MODE_PRIVATE).edit().putString("last_channel",latest.id).apply();
         Intent intent=new Intent(this,PlayerActivity.class);intent.putExtra("channel_id",latest.id);startActivity(intent);
     }
     private void renderPlaylists() {
@@ -304,7 +335,7 @@ public class MainActivity extends Activity {
                 List<Channel> parsed=M3uParser.parse(content,source.id,source.title,source.url);
                 if(parsed.isEmpty())throw new IllegalStateException("No valid channels found. Previous entries retained.");
                 store.replaceSourceChannels(source.id,parsed);
-                playlistState.put(source.id,"Imported "+parsed.size()+" entries");
+                playlistState.put(source.id,"Imported "+parsed.size()+" entries · awaiting approval");
             }catch(Exception error){playlistState.put(source.id,"Refresh failed: "+brief(error));}
             finally {
                 running.decrementAndGet();ui.post(()->{
@@ -338,37 +369,71 @@ public class MainActivity extends Activity {
     private static String host(String url) {try {return new URI(url).getHost();}catch(Exception e){return "Source";}}
     private void toast(String s) {Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
 
-    private class ChannelAdapter extends BaseAdapter {
+    /** View-holder rows recycle artwork and text; avoid allocating a view tree while scrolling. */
+    private final class ChannelAdapter extends BaseAdapter {
         private final boolean manage;
-        ChannelAdapter(boolean management){manage=management;}
+        ChannelAdapter(boolean manage){this.manage=manage;}
         @Override public int getCount(){return filtered.size();}
         @Override public Object getItem(int pos){return filtered.get(pos);}
         @Override public long getItemId(int pos){return pos;}
-        @Override public View getView(int pos,View convertView,ViewGroup parent) {
+        @Override public boolean hasStableIds(){return false;}
+        @Override public View getView(int pos,View convertView,ViewGroup parent){
             ChannelGroup g=filtered.get(pos);
-            LinearLayout card=row();Ui.padding(card,MainActivity.this,10,11);
-            LinearLayout.LayoutParams b=lp(-1,-2);b.setMargins(0,0,0,Ui.dp(MainActivity.this,6));
-            card.setBackground(Ui.bg(Ui.PANEL_ALT,12,MainActivity.this));
-            TextView glyph=Ui.text(MainActivity.this,g.name.trim().isEmpty()?"TV":g.name.substring(0,Math.min(2,g.name.length())).toUpperCase(Locale.ROOT),14,Ui.PRIMARY,true);
-            glyph.setGravity(Gravity.CENTER);glyph.setBackground(Ui.bg(Ui.PANEL,10,MainActivity.this));
-            FrameLayout art=new FrameLayout(MainActivity.this);art.addView(glyph,new FrameLayout.LayoutParams(-1,-1));
-            ImageView logo=new ImageView(MainActivity.this);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            logo.setBackground(Ui.bg(Ui.PANEL,10,MainActivity.this));
-            art.addView(logo,new FrameLayout.LayoutParams(-1,-1));
-            card.addView(art,lp(47,48));logos.bind(g.logoUrl,logo,glyph);
-            LinearLayout text=column();
-            TextView name=Ui.text(MainActivity.this,g.name,15,Ui.TEXT,true);name.setMaxLines(2);text.addView(name);
-            String desc=g.category+"  ·  "+g.feeds.size()+" source"+(g.feeds.size()==1?"":"s")
-                +(g.language.isEmpty()?"":"  ·  "+g.language);
-            TextView caption=Ui.text(MainActivity.this,desc,11,Ui.MUTED,false);caption.setMaxLines(2);text.addView(caption);
-            if(!manage){String status="";for(Channel c:g.feeds)if("REACHABLE".equals(c.status)){status="Reachable ✓";break;}
-                if(!status.isEmpty())text.addView(Ui.text(MainActivity.this,status,11,Ui.PRIMARY,false));}
-            LinearLayout.LayoutParams textP=new LinearLayout.LayoutParams(0,-2,1);textP.setMargins(Ui.dp(MainActivity.this,10),0,Ui.dp(MainActivity.this,8),0);card.addView(text,textP);
-            if(manage){Switch toggle=new Switch(MainActivity.this);toggle.setChecked(g.allowed);toggle.setOnCheckedChangeListener((v,on)->{
-                store.setAllowed(g.id,on);g.allowed=on;updateSummary();
-            });card.addView(toggle);}
-            else {TextView arrow=Ui.text(MainActivity.this,"▶",19,Ui.PRIMARY,true);card.addView(arrow);}
-            LinearLayout outer=column();outer.addView(card,b);return outer;
+            Holder h;
+            if(convertView==null){
+                h=new Holder();
+                LinearLayout outer=column();
+                LinearLayout card=row();card.setGravity(Gravity.CENTER_VERTICAL);
+                Ui.padding(card,MainActivity.this,11,10);
+                card.setBackground(Ui.bg(Ui.PANEL,14,MainActivity.this));
+                FrameLayout art=new FrameLayout(MainActivity.this);
+                h.glyph=Ui.text(MainActivity.this,"TV",13,Ui.PRIMARY,true);
+                h.glyph.setGravity(Gravity.CENTER);h.glyph.setBackground(Ui.bg(Ui.PANEL_ALT,11,MainActivity.this));
+                art.addView(h.glyph,new FrameLayout.LayoutParams(-1,-1));
+                h.logo=new ImageView(MainActivity.this);h.logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                h.logo.setBackground(Ui.bg(Ui.PANEL_ALT,11,MainActivity.this));
+                art.addView(h.logo,new FrameLayout.LayoutParams(-1,-1));
+                card.addView(art,lp(51,51));
+                LinearLayout meta=column();
+                h.name=Ui.text(MainActivity.this,"",15,Ui.TEXT,true);h.name.setMaxLines(1);meta.addView(h.name);
+                h.subtitle=Ui.text(MainActivity.this,"",12,Ui.MUTED,false);h.subtitle.setMaxLines(2);meta.addView(h.subtitle);
+                LinearLayout.LayoutParams metaP=new LinearLayout.LayoutParams(0,-2,1);metaP.setMargins(Ui.dp(MainActivity.this,10),0,Ui.dp(MainActivity.this,7),0);
+                card.addView(meta,metaP);
+                if(manage){
+                    h.toggle=new Switch(MainActivity.this);h.toggle.setContentDescription("Allow channel");card.addView(h.toggle);
+                }else{
+                    h.star=Ui.text(MainActivity.this,"☆",24,Ui.MUTED,false);
+                    h.star.setGravity(Gravity.CENTER);card.addView(h.star,lp(42,48));
+                }
+                LinearLayout.LayoutParams rowP=lp(-1,-2);rowP.setMargins(0,0,0,Ui.dp(MainActivity.this,7));
+                outer.addView(card,rowP);outer.setTag(h);convertView=outer;
+            }else h=(Holder)convertView.getTag();
+            h.name.setText(g.name);
+            h.glyph.setText(g.name.trim().isEmpty()?"TV":g.name.trim().substring(0,Math.min(2,g.name.trim().length())).toUpperCase(Locale.ROOT));
+            StringBuilder detail=new StringBuilder(g.category).append("  ·  ").append(g.feeds.size()).append(g.feeds.size()==1?" source":" sources");
+            if(!g.language.isEmpty())detail.append("  ·  ").append(g.language);
+            if(!manage)detail.append("  ·  ").append(g.feeds.stream().anyMatch(c->"REACHABLE".equals(c.status))?"Reachable":"Ready to test");
+            h.subtitle.setText(detail.toString());
+            logos.bind(g.logoUrl,h.logo,h.glyph);
+            final Holder bound=h;
+            if(manage){
+                h.toggle.setOnCheckedChangeListener(null);h.toggle.setChecked(g.allowed);
+                h.toggle.setOnCheckedChangeListener((button,on)->{
+                    store.setAllowed(g.id,on);g.allowed=on;updateSummary();
+                });
+            }else{
+                h.star.setText(store.isFavorite(g)?"★":"☆");
+                h.star.setTextColor(store.isFavorite(g)?Ui.PRIMARY:Ui.MUTED);
+                h.star.setOnClickListener(v->{store.toggleFavorite(g);bound.star.setText(store.isFavorite(g)?"★":"☆");
+                    bound.star.setTextColor(store.isFavorite(g)?Ui.PRIMARY:Ui.MUTED);
+                    if(tab.equals("favorites"))updateList();});
+            }
+            return convertView;
         }
+    }
+    private static final class Holder {
+        TextView name,subtitle,glyph,star;
+        ImageView logo;
+        Switch toggle;
     }
 }

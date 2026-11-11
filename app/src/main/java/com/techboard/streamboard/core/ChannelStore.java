@@ -14,6 +14,7 @@ import java.util.*;
 /** Offline channel catalogue. Source replacement never destroys another playlist's entries. */
 public final class ChannelStore {
     public static final String BDIX = "https://raw.githubusercontent.com/saeidrahmanbd/BDIX-IPTV/main/IPTV-Playlist.m3u";
+    public static final String LIVE_TG = "https://livetgtv.lovable.app/api/public/playlist.m3u";
     public static final String VIP = "https://raw.githubusercontent.com/Mrbotrx/VIP-m3u-playlist/refs/heads/main/Vip%20playlists/vip_kbpro.m3u8";
     private final Context context;
     private final SharedPreferences pref;
@@ -43,7 +44,16 @@ public final class ChannelStore {
             if(!pref.contains("sources")) {
                 sources.add(new PlaylistSource("bdix","BDIX IPTV",BDIX));
                 sources.add(new PlaylistSource("vip","VIP KB Pro",VIP));
+                sources.add(new PlaylistSource("live-tg","Live TG TV",LIVE_TG));
+                pref.edit().putBoolean("live_tg_v11_added",true).apply();
                 saveSources();
+            }
+            // One-time migration preserves existing approvals and previously imported entries.
+            if (!pref.getBoolean("live_tg_v11_added",false)) {
+                boolean exists=false;
+                for(PlaylistSource source:sources) if(LIVE_TG.equals(source.url)) exists=true;
+                if(!exists) {sources.add(new PlaylistSource("live-tg","Live TG TV",LIVE_TG));saveSources();}
+                pref.edit().putBoolean("live_tg_v11_added",true).apply();
             }
         } catch(Exception e) { sources.clear(); }
     }
