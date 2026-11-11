@@ -56,3 +56,7 @@ GitHub Actions will build the Android test APK and Windows installer separately.
 8. For a remaining Android crash, capture `adb logcat -d -v time | grep -E 'FATAL EXCEPTION|com.techboard.streamboard|OutOfMemoryError'` (run from a connected PC) and share the first exception stack plus phone model/Android version. Remove stream tokens or login data from the log before sharing.
 
 Only use streams you have permission to access. Playlist entries may be region-locked, tokenized, geo-restricted, offline or changing over time. Stream reachability checks cannot validate that the expected programme is playing.
+
+## Windows Playlist Studio (v1.3.0)
+
+Open **Playlist Studio** in the Windows sidebar to review imported categories, correct individual channel categories, and compile selected playlists into a master M3U or CSV export. The player stays visible. Consult `README-PLAYLIST-STUDIO-v1.3.md` for release notes and testing caveats.

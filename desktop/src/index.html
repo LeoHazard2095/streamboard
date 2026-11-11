@@ -1,17 +1,90 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data:; script-src 'self'; style-src 'self'; img-src 'self' data: https: http:; connect-src https: http:; media-src https: http: blob:; object-src 'none'; frame-src 'none';">
-<title>StreamBoard IPTV</title><link rel="stylesheet" href="style.css"></head><body>
-<div id="app"><aside><div class="brand"><div class="mark">▶</div><div><strong>STREAMBOARD</strong><small>LIVE TELEVISION</small></div></div>
-  <div class="navlist"><button data-tab="live" class="active"><span>◉</span> Live TV</button><button data-tab="favorites"><span>★</span> Favorites</button><button data-tab="access"><span>☑</span> Channel access</button><button data-tab="sources"><span>≡</span> Playlists</button></div>
-  <div class="sidebar-bottom"><span class="green-dot"></span><span id="side-count">Loading channels</span><small>StreamBoard 1.1 · Private local library</small></div></aside>
-<main><header><div><div class="eyebrow" id="eyebrow">YOUR TELEVISION</div><h1 id="page-title">Live TV</h1></div><div class="header-actions"><div id="stats">—</div><button id="refresh-btn">↻ Refresh</button></div></header>
-<section id="player-section"><div class="player-frame"><video id="video" controls playsinline></video><div id="video-overlay" class="video-overlay"><div class="live-pill">● LIVE PLAYER</div><h2>Select a channel to start watching</h2><p>Approved channels and automatic backup sources.</p></div></div>
-<div class="player-bottom"><div><b id="playing-title">Nothing playing</b><div class="sub" id="player-status">Choose a channel below</div></div><div class="player-controls"><select id="quality" aria-label="Stream quality"><option value="auto">Auto quality</option><option value="360">≤ 360p</option><option value="480">≤ 480p</option><option value="720">≤ 720p</option><option value="1080">≤ 1080p</option></select><select id="source" aria-label="Channel source"></select><button id="fullscreen">⛶ Fullscreen</button></div></div></section>
-<section id="library"><div class="library-heading"><div><h2 id="section-title">All channels</h2><p id="section-subtitle">Choose what appears in your player.</p></div><input id="search" placeholder="⌕ Search channels" autocomplete="off"/></div><div id="chips" class="chips"></div><div id="channel-grid" class="channel-grid"></div><div id="empty" class="empty" hidden>No channels to display. Import a playlist or approve channels from Access.</div></section>
-<section id="access" hidden><div class="panel-title"><h2>Channel access</h2><p>Select visible categories and individual channels. New imports stay blocked.</p></div><div class="row"><button id="allow-filtered">Allow filtered</button><button id="block-filtered" class="ghost">Block filtered</button></div><div id="categories-access" class="chips"></div><div id="access-list" class="access-list"></div></section>
-<section id="sources-panel" hidden><div class="panel-title"><h2>Playlist sources</h2><p>Add, refresh, and remove playlists. If refresh fails, existing channel data is kept.</p></div>
-<form id="add-source"><input id="source-name" placeholder="Playlist name"/><input id="source-url" placeholder="https://example.com/playlist.m3u" required/><button type="submit">+ Add source</button></form>
-<div class="row"><button id="refresh-all">↻ Refresh all playlists</button><span class="sub" id="import-status">Sources are imported on this device.</span></div><div id="source-list" class="source-list"></div></section>
-<dialog id="inspect-dialog" class="inspect-dialog"><div class="dialog-header"><strong>Playlist inspection</strong><button onclick="document.getElementById('inspect-dialog').close()">Close</button></div><pre id="inspect-text"></pre></dialog>
-</main></div>
-<script src="hls.min.js"></script><script src="logic.js"></script><script src="app.js"></script></body></html>
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self'; img-src 'self' data: https: http:; connect-src 'self' http://127.0.0.1:*; media-src 'self' http://127.0.0.1:* blob:; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+<title>StreamBoard IPTV</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<div class="shell">
+ <aside class="sidebar" aria-label="Main navigation">
+  <div class="branding"><div class="brandmark">▶</div><div><strong>streamboard</strong><small>YOUR LIVE TV SPACE</small></div></div>
+  <div class="nav-caption">EXPLORE</div>
+  <nav class="navigation">
+   <button data-tab="live" class="on" aria-label="Live channels"><span class="nav-icon">◉</span><span>Live channels</span></button>
+   <button data-tab="favorites" aria-label="Favorites"><span class="nav-icon">☆</span><span>Favorites</span></button>
+  </nav>
+  <div class="nav-caption secondary-nav">MANAGE</div>
+  <nav class="navigation">
+   <button data-tab="access" aria-label="Channel approvals"><span class="nav-icon">☷</span><span>Channel access</span></button>
+   <button data-tab="sources" aria-label="Playlist sources"><span class="nav-icon">☰</span><span>Playlists</span></button>
+   <button data-tab="studio" aria-label="Playlist Studio"><span class="nav-icon">▤</span><span>Playlist Studio</span></button>
+  </nav>
+  <div class="sidebar-foot"><div class="status-led"><span class="dot"></span> LOCAL LIBRARY</div><strong id="side-count">Loading…</strong><small>StreamBoard · Windows 1.3</small></div>
+ </aside>
+ <main class="workspace">
+  <header class="topbar"><div class="heading"><div class="eyebrow">WATCH. DISCOVER. ORGANIZE.</div><h1>Live television <span>made simple.</span></h1></div><div class="top-actions"><span id="stats">Loading channels</span><button id="refresh-btn" class="btn btn-subtle" title="Refresh all playlists">↻ Refresh lists</button></div></header>
+  <div class="watch-layout">
+   <section class="watch-area" aria-label="Current live stream">
+    <div class="section-kicker"><span class="pulsing"></span> NOW WATCHING <span class="watch-area-side">YOUR PLAYER</span></div>
+    <div class="player-shell">
+     <div class="screen" id="screen"><video id="video" playsinline controls aria-label="Live TV playback"></video>
+      <div class="screen-empty" id="video-overlay"><div class="screen-symbol">▶</div><span>READY WHEN YOU ARE</span><h2 id="overlay-title">Pick a channel to start watching</h2><p id="overlay-subtitle">Browse approved channels without losing the video.</p></div>
+      <div class="player-toast" id="player-toast" role="status" aria-live="polite"></div>
+     </div>
+     <div class="now-playing"><div class="now-icon">LIVE</div><div class="now-info"><strong id="playing-title">Nothing playing yet</strong><small id="player-status">Choose an approved channel to begin</small></div><button id="previous" class="round-btn" title="Previous channel" aria-label="Previous channel">‹</button><button id="next" class="round-btn" title="Next channel" aria-label="Next channel">›</button></div>
+     <div class="player-toolbar"><label>QUALITY <select id="quality" aria-label="Resolution limit"><option value="auto">Auto (recommended)</option><option value="360">Up to 360p</option><option value="480">Up to 480p</option><option value="720">Up to 720p</option><option value="1080">Up to 1080p</option></select></label><label>STREAM SOURCE <select id="source" aria-label="Choose channel source"><option>None</option></select></label><button id="fullscreen" class="btn btn-full" title="Fullscreen video (F)">⛶ Fullscreen</button></div>
+    </div>
+    <div class="quick-hint"><span>TIP</span> Browse categories or manage playlists while the picture keeps playing. Use <kbd>F</kbd> for fullscreen and <kbd>Esc</kbd> to exit.</div>
+    <div class="source-health" id="source-health"><div><strong>Automatic source switching</strong><p>If your stream stops or buffers too long, we'll try the next source.</p></div><span class="health-on">ENABLED</span></div>
+   </section>
+   <section class="explorer" aria-label="Channel browser">
+    <div class="explore-top"><div><span class="eyebrow" id="explore-eyebrow">YOUR CHANNELS</span><h2 id="panel-title">Browse live TV</h2><p id="panel-subtitle">Pick a channel. Keep watching while you browse.</p></div><span class="count-pill" id="visible-count">0 channels</span></div>
+    <div id="catalog-pane" class="catalog-pane">
+     <div class="searchbox"><span>⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search channels or categories…" aria-label="Search channels"/></div>
+     <div id="chips" class="chips" aria-label="Category filters"></div>
+     <div class="list-heading"><span>CHANNEL DIRECTORY</span><span id="directory-count">0 results</span></div>
+     <div id="channel-viewport" class="list-viewport" tabindex="0" aria-label="Available channels"><div id="channel-list" class="virtual-list"></div></div>
+     <div id="empty" class="empty" hidden><div class="empty-icon">▤</div><strong>No matching channels</strong><span>Try another category, or allow channels in Access.</span></div>
+    </div>
+    <div id="access-pane" class="access-pane" hidden>
+     <p class="explain">A channel must be approved and its category visible before it can play.</p>
+     <div class="access-actions"><button id="allow-filtered" class="btn btn-primary">✓ Allow results</button><button id="block-filtered" class="btn btn-subtle">Block results</button></div>
+     <div class="searchbox"><span>⌕</span><input id="access-search" type="search" autocomplete="off" placeholder="Find channels to approve…" aria-label="Search access list"/></div>
+     <div id="categories-access" class="access-categories"></div>
+     <div class="list-heading"><span>CHANNEL PERMISSIONS</span><span id="access-count">0 results</span></div>
+     <div id="access-viewport" class="list-viewport" tabindex="0" aria-label="Channel permissions"><div id="access-list" class="virtual-list"></div></div>
+    </div>
+    <div id="sources-pane" class="sources-pane" hidden>
+     <p class="explain">Import public or authorized M3U playlists. Duplicate channels can share backup streams.</p>
+     <form id="add-source" class="source-form"><input id="source-name" aria-label="Playlist name" placeholder="Playlist name (optional)"/><input id="source-url" type="url" aria-label="Playlist URL" placeholder="https://…/channels.m3u" required/><button type="submit" class="btn btn-primary">+ Add playlist</button></form>
+     <div class="source-heading"><span>YOUR PLAYLISTS</span><button id="refresh-all" class="text-btn">↻ Refresh all</button></div>
+     <div id="source-list" class="source-list"></div>
+     <div class="source-help"><strong>Import from GitHub repository</strong><p>Discover M3U files from a public repository, then select the playlists you want.</p><form id="github-form" class="github-form"><input id="github-url" placeholder="https://github.com/Diljan707/new" aria-label="GitHub repository URL" required/><button class="btn btn-subtle" type="submit">Find playlists</button></form><div id="repo-results" class="repo-results" aria-live="polite"></div></div>
+     <div id="import-status" class="import-status" role="status">No import running</div>
+    </div>
+    <div id="studio-pane" class="studio-pane" hidden>
+     <div class="studio-notice">Analysis is based on saved playlist metadata. A listed URL is <strong>not</strong> verified as a working video stream.</div>
+     <div class="studio-metrics" id="studio-metrics" aria-label="Playlist statistics"></div>
+     <div class="studio-section-heading"><strong>Playlist sources</strong><small>Select which feeds to compile</small></div>
+     <div id="studio-sources" class="studio-checks"></div>
+     <div class="studio-section-heading"><strong>Categories</strong><small>Select categories for your exported playlist</small></div>
+     <div id="studio-categories" class="studio-checks"></div>
+     <div class="studio-section-heading"><strong>Category cleanup</strong><small>Correct the category without changing channel sources</small></div>
+     <div class="studio-search"><input id="studio-search" type="search" placeholder="Find a channel to recategorize…" aria-label="Search channels for category correction"/></div>
+     <div id="studio-review" class="studio-review"></div>
+     <div class="studio-section-heading"><strong>Quality and duplicate review</strong></div>
+     <div id="studio-warnings" class="studio-warnings"></div>
+     <div class="studio-section-heading"><strong>Compile master playlist</strong></div>
+     <div class="studio-options">
+      <label><input type="checkbox" id="studio-approved" checked/> Approved and visible channels only</label>
+      <label><input type="checkbox" id="studio-backups"/> Export backup stream URLs too</label>
+     </div>
+     <div class="studio-export-summary" id="studio-export-summary">No channels selected yet</div>
+     <div class="studio-actions"><button id="studio-export-m3u" class="btn btn-primary">Export .M3U</button><button id="studio-export-csv" class="btn btn-subtle">Export .CSV</button></div>
+     <div class="studio-notice" role="status" id="studio-status">Exports contain original stream links. Share files only when you have permission to share those URLs.</div>
+    </div>
+   </section>
+  </div>
+ </main>
+</div>
+<dialog id="inspect-dialog" class="inspect-dialog"><div class="dialog-top"><strong>Playlist details</strong><button id="close-inspect" class="btn btn-subtle">Close</button></div><pre id="inspect-text"></pre></dialog>
+<script src="hls.min.js"></script><script src="logic.js"></script><script src="analyzer.js"></script><script src="app.js"></script>
+</body></html>

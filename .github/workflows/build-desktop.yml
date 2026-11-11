@@ -19,7 +19,7 @@ jobs:
       - name: Install desktop dependencies
         working-directory: desktop
         run: npm install --no-audit --no-fund
-      - name: Run desktop parser tests
+      - name: Run desktop, playlist analyzer, HLS bridge and parser tests
         working-directory: desktop
         run: npm test
       - name: Build Windows installer
@@ -29,6 +29,6 @@ jobs:
         run: npm run dist:win
       - uses: actions/upload-artifact@v4
         with:
-          name: StreamBoard-v1.1.1-Windows-Installer
+          name: StreamBoard-v1.3.0-Windows-Installer
           path: desktop/dist/*.exe
           if-no-files-found: error
