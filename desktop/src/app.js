@@ -1,11 +1,11 @@
 'use strict';
-const L=window.StreamLogic,A=window.StreamAnalyzer,$=id=>document.getElementById(id),ROW=76;
+const L=window.StreamLogic,A=window.StreamAnalyzer,$=id=>document.getElementById(id),ROW=82;
 const defaults=[
  {id:'bdix',title:'BDIX IPTV',url:'https://raw.githubusercontent.com/saeidrahmanbd/BDIX-IPTV/main/IPTV-Playlist.m3u'},
  {id:'vip',title:'VIP KB Pro',url:'https://raw.githubusercontent.com/Mrbotrx/VIP-m3u-playlist/refs/heads/main/Vip%20playlists/vip_kbpro.m3u8'},
  {id:'live-tg',title:'Live TG TV',url:'https://livetgtv.lovable.app/api/public/playlist.m3u'}];
 let state={},channels=[],category='All',tab='live',query='',showing=[],categoryCounts=new Map(),playable=[],current=null,feeds=[],feedIndex=-1,tried=new Set(),hls=null,quality='auto',generation=0,stallStart=0,refreshing=false;
-let studioExcludedCategories=new Set(),studioExcludedSources=new Set();
+let studioExcludedCategories=new Set(),studioExcludedSources=new Set(),selectedSourceId=null;
 let activeList='channel',renderPending=false;const statuses=new Map();const collator=new Intl.Collator(undefined,{numeric:true,sensitivity:'base'});
 function element(tag,cls,content){const el=document.createElement(tag);if(cls)el.className=cls;if(content!==undefined)el.textContent=content;return el;}
 function setText(id,value){$(id).textContent=value;}
@@ -40,24 +40,74 @@ function drawVirtual(type,force=false){if(activeList!==type)return;const viewpor
  holder.append(fragment);
 }
 function setupScroll(){for(const [type,id] of [['channel','channel-viewport'],['access','access-viewport']]){$(id).onscroll=()=>{if(activeList!==type||renderPending)return;renderPending=true;requestAnimationFrame(()=>{renderPending=false;drawVirtual(type);});};}}
-function drawCategories(){const holder=$('chips');holder.replaceChildren();const opts=['All',...Array.from(categoryCounts.keys()).filter(n=>!state.hiddenCategories.includes(n)).sort(collator.compare)];
- for(const cat of opts){const b=element('button',cat===category?'active':'',cat==='All'?'All channels':cat);b.onclick=()=>{category=cat;filterRows();drawCategories();};holder.append(b);}
+function drawCategories(){
+ const select=$('category-select'),choices=['All',...Array.from(categoryCounts.keys()).filter(n=>!state.hiddenCategories.includes(n)).sort(collator.compare)];
+ select.replaceChildren();for(const name of choices){const option=element('option','',name==='All'?'All categories':name);option.value=name;select.append(option);}
+ if(!choices.includes(category))category='All';select.value=category;
+ const holder=$('chips');holder.replaceChildren();
  const access=$('categories-access');access.replaceChildren();const names=Array.from(categoryCounts.keys()).sort(collator.compare);
  for(const cat of names){const hidden=state.hiddenCategories.includes(cat);const b=element('button',hidden?'hidden-cat':'',`${hidden?'○':'✓'} ${cat} (${categoryCounts.get(cat)})`);
-  b.title=hidden?'Show category':'Hide category';b.onclick=()=>{toggle(state.hiddenCategories,cat);rebuildPlayable();if(current&&!isAllowed(current))stop('Category disabled');persist();drawCategories();filterRows();};access.append(b);}
+  b.title=hidden?'Show category':'Hide category';b.setAttribute('aria-pressed',String(!hidden));b.onclick=()=>{toggle(state.hiddenCategories,cat);rebuildPlayable();if(current&&!isAllowed(current))stop('Category disabled');persist();drawCategories();filterRows();};access.append(b);}
 }
-function switchTab(next){tab=next;query='';category='All';$('search').value='';$('access-search').value='';
+function switchTab(next){
+ tab=next;query='';category='All';$('search').value='';$('access-search').value='';
+ document.body.dataset.view=next;
  for(const b of document.querySelectorAll('[data-tab]')){b.classList.toggle('on',b.dataset.tab===tab);b.setAttribute('aria-current',String(b.dataset.tab===tab));}
  const isCatalog=tab==='live'||tab==='favorites';$('catalog-pane').hidden=!isCatalog;$('access-pane').hidden=tab!=='access';$('sources-pane').hidden=tab!=='sources';$('studio-pane').hidden=tab!=='studio';
- const titles={live:['LIVE TV','Channel browser','Play a channel and browse the library without hiding the video.'],favorites:['FAVORITES','Saved channels','Quick access to the channels you care about most.'],access:['ACCESS CONTROL','Channel access','Choose which channels and categories are visible and playable.'],sources:['PLAYLIST SOURCES','Manage playlists','Import, inspect, and refresh playlist sources in one place.'],studio:['PLAYLIST STUDIO','Analyze and compile','Clean categories, review duplicates, and export a master playlist.']};
- const [eyebrow,title,subtitle]=titles[tab];setText('explore-eyebrow',eyebrow);setText('panel-title',title);setText('panel-subtitle',subtitle);setText('visible-count',tab==='sources'?`${state.sources.length} lists`:tab==='studio'?'Analyzer':`${channels.length.toLocaleString()} channels`);
+ const pages={
+  live:['WATCH','Channels','Find and play approved live television.'],
+  favorites:['WATCH','Favorites','Your saved channels in one place.'],
+  access:['MANAGE','Channel access','Approve what can be viewed, by category or channel.'],
+  sources:['MANAGE','Playlists','Import and manage your playlist sources.'],
+  studio:['ANALYZE','Playlist Studio','Review and compile a clean channel library.']
+ };
+ const [group,title,description]=pages[tab];setText('page-eyebrow',group);setText('page-title',title);setText('page-description',description);
+ const paneTitles={live:['LIVE','Channel browser','Search or filter the channels you can watch.'],favorites:['SAVED','Favorite channels','Your shortcuts to live TV.'],access:['PERMISSIONS','Review channel access','Select categories and approve individual channels.'],sources:['SOURCES','Your playlists','Select a playlist to see its details.'],studio:['ANALYZER','Playlist Studio','Analyze categories and compile an export.']};
+ const [eyebrow,panelTitle,subtitle]=paneTitles[tab];setText('explore-eyebrow',eyebrow);setText('panel-title',panelTitle);setText('panel-subtitle',subtitle);
+ setText('visible-count',tab==='sources'?`${state.sources.length} lists`:tab==='studio'?'Studio':`${channels.length.toLocaleString()} channels`);
  activeList=tab==='access'?'access':tab==='studio'||tab==='sources'?'none':'channel';drawCategories();if(tab==='sources')renderSources();else if(tab==='studio')renderStudio();else filterRows();
 }
 function inspect(s){const list=state.channels.filter(x=>x.sourceId===s.id);const counts=new Map(),hosts=new Map();for(const ch of list){counts.set(ch.category,(counts.get(ch.category)||0)+1);try{const host=new URL(ch.url).hostname;hosts.set(host,(hosts.get(host)||0)+1);}catch{}}
  const sort=map=>Array.from(map).sort((a,b)=>b[1]-a[1]);$('inspect-text').textContent=[`Playlist: ${s.title}`,`URL: ${s.url}`,`Imported entries: ${list.length}`,`Unique stream URLs: ${new Set(list.map(x=>x.url)).size}`,`Logos: ${list.filter(x=>x.logo).length}`,`TV guide IDs: ${list.filter(x=>x.tvgId).length}`, '', 'CATEGORIES', ...sort(counts).map(([name,n])=>`${name}: ${n}`), '', 'TOP STREAM HOSTS',...sort(hosts).slice(0,12).map(([name,n])=>`${name}: ${n}`),'','Note: A valid playlist entry is not proof of playable video.'].join('\n');$('inspect-dialog').showModal();}
-function renderSources(){const root=$('source-list');root.replaceChildren();const counts=new Map();for(const c of state.channels)counts.set(c.sourceId,(counts.get(c.sourceId)||0)+1);
- for(const s of state.sources){const card=element('div','source-card'),host=new URL(s.url).hostname;card.append(element('strong','',s.title),element('small','',`${(counts.get(s.id)||0).toLocaleString()} entries · ${host} · ${statuses.get(s.id)||'Saved'}`));
-  const acts=element('div','source-buttons');for(const [title,cb] of [['↻ Refresh',()=>refreshOne(s)],['Inspect',()=>inspect(s)],['Remove',()=>{if(!window.confirm(`Remove ${s.title} and its cached channels?`))return;state.sources=state.sources.filter(x=>x.id!==s.id);state.channels=state.channels.filter(x=>x.sourceId!==s.id);rebuildCatalog();if(current&&(!channels.some(g=>g.id===current.id)||!isAllowed(current)))stop('Channel removed');persist();renderSources();}]]){let btn=element('button','',title);btn.onclick=cb;acts.append(btn);}card.append(acts);root.append(card);}
+function removeSource(source){
+ if(!source||!window.confirm(`Remove ${source.title} and its cached channels?`))return;
+ state.sources=state.sources.filter(s=>s.id!==source.id);
+ state.channels=state.channels.filter(c=>c.sourceId!==source.id);
+ if(selectedSourceId===source.id)selectedSourceId=state.sources[0]?.id||null;
+ rebuildCatalog();if(current&&(!channels.some(g=>g.id===current.id)||!isAllowed(current)))stop('Channel removed');persist();renderSources();
+}
+function renderSourceDetails(){
+ const selected=state.sources.find(s=>s.id===selectedSourceId);
+ const title=$('source-detail-title'),host=$('source-detail-host'),metrics=$('source-detail-metrics'),cats=$('source-detail-categories');
+ metrics.replaceChildren();cats.replaceChildren();
+ for(const id of ['source-detail-refresh','source-detail-inspect','source-detail-remove'])$(id).disabled=!selected;
+ if(!selected){title.textContent='Choose a playlist';host.textContent='Select a source to inspect its channels and categories.';return;}
+ title.textContent=selected.title;
+ let hostname='Unknown host';try{hostname=new URL(selected.url).hostname;}catch{}
+ host.textContent=`${hostname} · ${statuses.get(selected.id)||'Saved locally'}`;
+ const entries=state.channels.filter(c=>c.sourceId===selected.id);const counts=new Map();for(const c of entries)counts.set(c.category||'Other',(counts.get(c.category||'Other')||0)+1);
+ const summary=[['Entries',entries.length],['Categories',counts.size],['Stream URLs',new Set(entries.map(c=>c.url)).size],['Logos',entries.filter(c=>Boolean(c.logo)).length]];
+ for(const [label,value] of summary){const item=element('div','source-stat');item.append(element('strong','',Number(value).toLocaleString()),element('small','',label));metrics.append(item);}
+ const sorted=[...counts].sort((a,b)=>b[1]-a[1]);for(const [name,count] of sorted.slice(0,7)){const row=element('div','source-category-row');row.append(element('span','',name),element('strong','',count.toLocaleString()));cats.append(row);}
+ if(!sorted.length)cats.append(element('p','source-empty-categories','Import or refresh this playlist to inspect its categories.'));
+ $('source-detail-refresh').onclick=()=>refreshOne(selected);
+ $('source-detail-inspect').onclick=()=>inspect(selected);
+ $('source-detail-remove').onclick=()=>removeSource(selected);
+}
+function renderSources(){
+ const root=$('source-list');root.replaceChildren();
+ const counts=new Map();for(const c of state.channels)counts.set(c.sourceId,(counts.get(c.sourceId)||0)+1);
+ if(!state.sources.some(s=>s.id===selectedSourceId))selectedSourceId=state.sources[0]?.id||null;
+ setText('source-list-count',`${state.sources.length} source${state.sources.length===1?'':'s'}`);
+ for(const s of state.sources){
+  let hostname='Source';try{hostname=new URL(s.url).hostname;}catch{}
+  const row=element('button','source-item'+(s.id===selectedSourceId?' selected':''));row.type='button';row.setAttribute('aria-pressed',String(s.id===selectedSourceId));
+  const content=element('div','source-item-body');content.append(element('strong','',s.title),element('small','',hostname));
+  const info=element('span','source-item-meta',`${(counts.get(s.id)||0).toLocaleString()} channels`);
+  row.append(content,info);row.onclick=()=>{selectedSourceId=s.id;renderSources();};root.append(row);
+ }
+ if(!state.sources.length)root.append(element('div','source-empty','No playlists yet. Add a URL to import your first source.'));
+ renderSourceDetails();
 }
 function workerAction(type,payload){return new Promise((resolve,reject)=>{const worker=new Worker('playlist-worker.js');const timeout=setTimeout(()=>{worker.terminate();reject(Error('Playlist processing timed out'));},35000);
  worker.onmessage=e=>{clearTimeout(timeout);worker.terminate();e.data?.error?reject(Error(e.data.error)):resolve(e.data.result);};worker.onerror=e=>{clearTimeout(timeout);worker.terminate();reject(Error(e.message));};worker.postMessage({type,payload});});}
@@ -70,9 +120,9 @@ async function refreshOne(s,{silent=false}={}){statuses.set(s.id,'Loading…');i
 }
 async function refreshAll(){if(refreshing)return;refreshing=true;$('refresh-btn').disabled=true;$('refresh-all').disabled=true;try{for(const s of [...state.sources])await refreshOne(s,{silent:true});if(tab==='sources')renderSources();else switchTab(tab);}finally{refreshing=false;$('refresh-btn').disabled=false;$('refresh-all').disabled=false;}}
 function playerStatus(message){setText('player-status',message);}
-function stop(reason='Select an approved channel'){generation++;const player=$('video');if(hls){hls.destroy();hls=null;}player.pause();player.removeAttribute('src');player.load();current=null;feeds=[];tried.clear();$('source').replaceChildren();$('video-overlay').hidden=false;setText('playing-title','Nothing playing yet');playerStatus(reason);setText('overlay-title','Choose a channel to start');setText('overlay-subtitle','Browse approved channels while the player stays visible.');drawVirtual('channel',true);}
+function stop(reason='Select an approved channel'){generation++;const player=$('video');if(hls){hls.destroy();hls=null;}player.pause();player.removeAttribute('src');player.load();current=null;document.body.classList.remove('has-player');feeds=[];tried.clear();$('source').replaceChildren();$('video-overlay').hidden=false;setText('playing-title','Nothing playing yet');playerStatus(reason);setText('overlay-title','Choose a channel to start');setText('overlay-subtitle','Browse approved channels while the player stays visible.');drawVirtual('channel',true);}
 function orderedFeeds(g){const options=[...g.feeds];const pref=state.preferred[g.id];const idx=options.findIndex(x=>x.url===pref);if(idx>0)options.unshift(...options.splice(idx,1));return options;}
-function play(g){if(!isAllowed(g))return;current=g;feeds=orderedFeeds(g);feedIndex=-1;tried.clear();setText('playing-title',g.name);
+function play(g){if(!isAllowed(g))return;current=g;document.body.classList.add('has-player');feeds=orderedFeeds(g);feedIndex=-1;tried.clear();setText('playing-title',g.name);
  const sel=$('source');sel.replaceChildren();feeds.forEach((f,i)=>{const o=element('option','',f.sourceName||`Source ${i+1}`);o.value=String(i);sel.append(o);});
  $('video-overlay').hidden=true;quality=$('quality').value;openFeed(0);drawVirtual('channel',true);}
 async function openFeed(i){if(!current||i<0||i>=feeds.length)return;const version=++generation;tried.add(i);feedIndex=i;
@@ -138,6 +188,9 @@ function setup(){
  let compact=false;try{compact=localStorage.getItem('streamboard-compact-player')==='1';}catch{}
  setCompactPlayer(compact);
  $('compact-view').onclick=()=>setCompactPlayer(!document.documentElement.classList.contains('compact-player'));
+ $('open-player-view').onclick=()=>switchTab('live');
+ $('show-add-playlist').onclick=()=>{const el=$('add-source-details');el.open=true;el.scrollIntoView({behavior:'smooth',block:'nearest'});$('source-url').focus();};
+ $('category-select').onchange=e=>{category=e.target.value;filterRows();};
  setupScroll();for(const b of document.querySelectorAll('[data-tab]'))b.onclick=()=>switchTab(b.dataset.tab);
  for(const [inputId] of [['search'],['access-search']])$(inputId).addEventListener('input',e=>{query=e.target.value;category='All';drawCategories();filterRows();});
  $('refresh-btn').onclick=refreshAll;$('refresh-all').onclick=refreshAll;
@@ -146,12 +199,12 @@ function setup(){
  $('allow-filtered').onclick=()=>{const existing=allowedIds();for(const g of showing)existing.add(g.id);state.allowed=[...existing];rebuildPlayable();persist();filterRows();};
  $('block-filtered').onclick=()=>{const block=new Set(showing.map(g=>g.id));state.allowed=state.allowed.filter(id=>!block.has(id));rebuildPlayable();if(current&&!isAllowed(current))stop('Channel blocked');persist();filterRows();};
  $('add-source').onsubmit=e=>{e.preventDefault();const url=$('source-url').value.trim();if(!L.urlOk(url)||state.sources.some(s=>s.url===url)){report('Enter an HTTP/HTTPS M3U URL that is not already saved.');return;}
- const source={id:'user-'+Date.now(),title:$('source-name').value.trim()||new URL(url).hostname,url};state.sources.push(source);persist();$('source-url').value='';$('source-name').value='';renderSources();refreshOne(source);};
+ const source={id:'user-'+Date.now(),title:$('source-name').value.trim()||new URL(url).hostname,url};state.sources.push(source);selectedSourceId=source.id;persist();$('source-url').value='';$('source-name').value='';$('add-source-details').open=false;renderSources();refreshOne(source);};
  $('github-form').onsubmit=async e=>{e.preventDefault();const url=$('github-url').value.trim(),root=$('repo-results');root.replaceChildren(element('span','', 'Checking public repository…'));
   try{const entries=await window.streamBoard.discoverGithub(url);root.replaceChildren();if(!entries.length){root.append(element('span','', 'No .m3u or .m3u8 files were found. Try the repository README for published playlist URLs.'));return;}
    for(const item of entries){const row=element('div','repo-result');row.append(element('small','',item.path));const add=element('button','','+ Import');add.onclick=()=>{
     if(state.sources.some(s=>s.url===item.url)){report('Playlist already saved');return;}
-    const source={id:'github-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),title:item.path.split('/').at(-1),url:item.url};state.sources.push(source);persist();renderSources();refreshOne(source);
+    const source={id:'github-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),title:item.path.split('/').at(-1),url:item.url};state.sources.push(source);selectedSourceId=source.id;persist();renderSources();refreshOne(source);
    };row.append(add);root.append(row);}
   }catch(err){root.replaceChildren(element('span','',err.message));}
  };
