@@ -1,4 +1,4 @@
-**Latest Windows version: v1.6.0** — see README-WINDOWS-1.6.0.md for diagnostics and recovery changes.
+**Latest Windows version: v1.6.1** — see README-WINDOWS-1.6.1.md for playlist import and stream-format improvements.
 
 # StreamBoard IPTV — Windows v1.5.0 focused workspace
 

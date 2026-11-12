@@ -10,6 +10,7 @@ let activeList='channel',renderPending=false;const diag=window.StreamDiagnostics
 function element(tag,cls,content){const el=document.createElement(tag);if(cls)el.className=cls;if(content!==undefined)el.textContent=content;return el;}
 function setText(id,value){$(id).textContent=value;}
 function report(value){setText('import-status',value);}
+function samePlaylistUrl(a,b){try{const normalized=v=>{const u=new URL(v);return (u.hostname.toLowerCase()==='raw.githubusercontent.com'?u.origin+u.pathname.replace('/refs/heads/','/'):u.origin+u.pathname).replace(/\/+$|\.git$/,'')+u.search;};return normalized(a)===normalized(b);}catch{return a===b;}}
 function notice(value){let el=$('player-toast');el.textContent=value;el.style.display='block';clearTimeout(notice.timeout);notice.timeout=setTimeout(()=>{el.style.display='none';},3500);}
 function persist(){return window.streamBoard.save(state).catch(e=>report('Save failed: '+e.message));}
 const allowedIds=()=>new Set(state.allowed);const hiddenNames=()=>new Set(state.hiddenCategories);const favoriteIds=()=>new Set(state.favorites);
@@ -67,8 +68,8 @@ function switchTab(next){
  setText('visible-count',tab==='sources'?`${state.sources.length} lists`:tab==='studio'?'Studio':`${channels.length.toLocaleString()} channels`);
  activeList=tab==='access'?'access':tab==='studio'||tab==='sources'?'none':'channel';drawCategories();if(tab==='sources')renderSources();else if(tab==='studio')renderStudio();else filterRows();
 }
-function inspect(s){const list=state.channels.filter(x=>x.sourceId===s.id);const counts=new Map(),hosts=new Map();for(const ch of list){counts.set(ch.category,(counts.get(ch.category)||0)+1);try{const host=new URL(ch.url).hostname;hosts.set(host,(hosts.get(host)||0)+1);}catch{}}
- const sort=map=>Array.from(map).sort((a,b)=>b[1]-a[1]);$('inspect-text').textContent=[`Playlist: ${s.title}`,`URL: ${s.url}`,`Imported entries: ${list.length}`,`Unique stream URLs: ${new Set(list.map(x=>x.url)).size}`,`Logos: ${list.filter(x=>x.logo).length}`,`TV guide IDs: ${list.filter(x=>x.tvgId).length}`, '', 'CATEGORIES', ...sort(counts).map(([name,n])=>`${name}: ${n}`), '', 'TOP STREAM HOSTS',...sort(hosts).slice(0,12).map(([name,n])=>`${name}: ${n}`),'','Note: A valid playlist entry is not proof of playable video.'].join('\n');$('inspect-dialog').showModal();}
+function inspect(s){const list=state.channels.filter(x=>x.sourceId===s.id);const counts=new Map(),hosts=new Map(),formats=new Map();for(const ch of list){const format=A.streamFormat(ch.url);formats.set(format,(formats.get(format)||0)+1);counts.set(ch.category,(counts.get(ch.category)||0)+1);try{const host=new URL(ch.url).hostname;hosts.set(host,(hosts.get(host)||0)+1);}catch{}}
+ const sort=map=>Array.from(map).sort((a,b)=>b[1]-a[1]);$('inspect-text').textContent=[`Playlist: ${s.title}`,`URL: ${s.url}`,`Imported entries: ${list.length}`,`Unique stream URLs: ${new Set(list.map(x=>x.url)).size}`,`Logos: ${list.filter(x=>x.logo).length}`,`TV guide IDs: ${list.filter(x=>x.tvgId).length}`, '', 'CATEGORIES', ...sort(counts).map(([name,n])=>`${name}: ${n}`), '', 'TOP STREAM HOSTS',...sort(hosts).slice(0,12).map(([name,n])=>`${name}: ${n}`),'', 'STREAM FORMATS',...sort(formats).map(([name,n])=>`${name}: ${n}`),'', 'DASH (.mpd) is not supported by the embedded HLS player. Open in VLC or use an HLS alternative.', 'A valid playlist entry is not proof of playable video.'].join('\n');$('inspect-dialog').showModal();}
 function removeSource(source){
  if(!source||!window.confirm(`Remove ${source.title} and its cached channels?`))return;
  state.sources=state.sources.filter(s=>s.id!==source.id);
@@ -139,10 +140,11 @@ function play(g){if(!isAllowed(g))return;current=g;document.body.classList.add('
 async function openFeed(i){if(!current||i<0||i>=feeds.length)return;const version=++generation;tried.add(i);feedIndex=i;attempts++;playbackStarted=false;diagStatus='Connecting';lastFailure='Connecting to stream server…';recordDiag('connect',`Attempt ${attempts}: ${feeds[i].sourceName||'Source '+(i+1)}`);
  const f=feeds[i],video=$('video');if(hls){hls.destroy();hls=null;}video.pause();video.removeAttribute('src');video.load();stallStart=Date.now();$('source').value=String(i);
  playerStatus(`Connecting · ${f.sourceName||'source'} · ${i+1}/${feeds.length}`);
+ if(A.streamFormat(f.url)==='DASH'){recordDiag('format','MPEG-DASH (.mpd) cannot play in this HLS player; looking for an HLS backup.');failover('Unsupported DASH stream (.mpd). Play this feed in VLC or select an HLS backup.');return;}
  let local;
  try{local=await window.streamBoard.openStream(f.url);}catch(e){if(version===generation){recordDiag('bridge',String(e.message).replace(/https?:\/\/[^\s]+/g,'[stream URL]'));failover(e.message);}return;}
  if(version!==generation)return;
- const isHls=/\.m3u8?(?:$|\?)/i.test(new URL(f.url).pathname+new URL(f.url).search);
+  const isHls=/\.m3u8?(?:$|\?)/i.test(new URL(f.url).pathname+new URL(f.url).search);
  if(isHls&&window.Hls?.isSupported()){
   hls=new window.Hls({enableWorker:true,lowLatencyMode:false,maxBufferLength:20,backBufferLength:12,manifestLoadingTimeOut:18000,levelLoadingTimeOut:18000,fragLoadingTimeOut:20000});
   hls.on(window.Hls.Events.MANIFEST_PARSED,()=>{if(version!==generation)return;recordDiag('manifest',`HLS manifest loaded, ${hls.levels.length} quality levels`);applyQuality();video.play().catch(()=>playerStatus('Press Play to start watching'));});
@@ -156,12 +158,12 @@ function applyQuality(){if(!hls)return;const cap=quality==='auto'?0:Number(quali
  if(!cap){hls.autoLevelCapping=-1;return;}const levels=hls.levels.map((l,i)=>({i,height:l.height||0})).filter(x=>x.height>0).sort((a,b)=>a.height-b.height);const eligible=levels.filter(x=>x.height<=cap);hls.autoLevelCapping=eligible.length?eligible.at(-1).i:levels.length?levels[0].i:-1;}
 function nextChannel(direction){if(!playable.length)return;let index=playable.findIndex(x=>x.id===current?.id);index=(index+direction+playable.length)%playable.length;play(playable[index]);}
 function setSource(index){if(!current||!feeds[index])return;state.preferred[current.id]=feeds[index].url;persist();tried.clear();openFeed(index);}
-function studioEntries(){return A.choose(channels,{categories:[...categoryCounts.keys()].filter(c=>!studioExcludedCategories.has(c)),sources:state.sources.map(s=>s.id).filter(id=>!studioExcludedSources.has(id)),allowed:state.allowed,hiddenCategories:state.hiddenCategories,preferred:state.preferred,approvedOnly:$('studio-approved').checked,includeAlternatives:$('studio-backups').checked});}
+function studioEntries(){return A.choose(channels,{categories:[...categoryCounts.keys()].filter(c=>!studioExcludedCategories.has(c)),sources:state.sources.map(s=>s.id).filter(id=>!studioExcludedSources.has(id)),allowed:state.allowed,hiddenCategories:state.hiddenCategories,preferred:state.preferred,approvedOnly:$('studio-approved').checked,includeAlternatives:$('studio-backups').checked,hlsOnly:$('studio-hls-only').checked});}
 function studioHeader(label,value){const div=element('div','studio-metric');div.append(element('strong','',Number(value).toLocaleString()),element('small','',label));return div;}
 function studioCheck(label,checked,callback){const box=element('label','studio-check'),input=element('input');input.type='checkbox';input.checked=checked;input.onchange=()=>callback(input.checked);box.append(input,element('span','',label));return box;}
 function renderStudio(){
  const report=A.summarize(channels,state.channels,state.sources,state.allowed,state.hiddenCategories);
- const metrics=$('studio-metrics');metrics.replaceChildren(studioHeader('Playlist entries',report.rawEntries),studioHeader('Unique channels',report.uniqueChannels),studioHeader('Backup feeds',report.extraSources),studioHeader('Uncategorized',report.uncategorized),studioHeader('Missing logos',report.missingLogo),studioHeader('Duplicate URLs',report.exactUrlDuplicates));
+ const metrics=$('studio-metrics');metrics.replaceChildren(studioHeader('Playlist entries',report.rawEntries),studioHeader('Unique channels',report.uniqueChannels),studioHeader('Backup feeds',report.extraSources),studioHeader('Uncategorized',report.uncategorized),studioHeader('Missing logos',report.missingLogo),studioHeader('Duplicate URLs',report.exactUrlDuplicates),studioHeader('HLS feeds',report.formats.HLS),studioHeader('DASH (unsupported)',report.formats.DASH));
  const sources=$('studio-sources');sources.replaceChildren();for(const row of report.sourceStats){sources.append(studioCheck(`${row.title} · ${row.count.toLocaleString()} entries`,!studioExcludedSources.has(row.id),on=>{if(on)studioExcludedSources.delete(row.id);else studioExcludedSources.add(row.id);renderStudioExportSummary();}));}
  const cats=$('studio-categories');cats.replaceChildren();for(const row of report.categories){cats.append(studioCheck(`${row.name} · ${row.count.toLocaleString()} channels`,!studioExcludedCategories.has(row.name),on=>{if(on)studioExcludedCategories.delete(row.name);else studioExcludedCategories.add(row.name);renderStudioExportSummary();}));}
  const reviews=$('studio-review');reviews.replaceChildren();const term=$('studio-search').value.trim().toLocaleLowerCase();const matching=channels.filter(g=>!term||`${g.name} ${g.category}`.toLocaleLowerCase().includes(term));
@@ -180,7 +182,7 @@ function renderStudio(){
  const warnings=$('studio-warnings');warnings.replaceChildren();
  if(!report.conflicts.length)warnings.append(element('p','studio-help','No country/language identity conflicts detected. Stream playback is not verified.'));
  for(const issue of report.conflicts.slice(0,8))warnings.append(element('p','studio-warning',`${issue.name}: ${issue.reason} (${issue.groups} groups)`));
- warnings.append(element('p','studio-help',`${report.missingGuideId.toLocaleString()} channels lack TV guide IDs. ${report.uniqueUrls.toLocaleString()} distinct stream URLs found. No stream video checks have been run.`));
+ warnings.append(element('p','studio-help',`${report.missingGuideId.toLocaleString()} channels lack TV guide IDs. ${report.uniqueUrls.toLocaleString()} distinct stream URLs found. ${report.formats.DASH.toLocaleString()} DASH feeds require an external DASH-capable player, such as VLC. No stream video checks have been run.`));
  renderStudioExportSummary();
 }
 function renderStudioExportSummary(){const entries=studioEntries(),distinct=new Set(entries.map(x=>x.channel.id));setText('studio-export-summary',`${distinct.size.toLocaleString()} channels · ${entries.length.toLocaleString()} URLs in export · ${$('studio-backups').checked?'Including backup feeds':'Preferred/first source only'}`);}
@@ -205,16 +207,16 @@ function setup(){
  setupScroll();for(const b of document.querySelectorAll('[data-tab]'))b.onclick=()=>switchTab(b.dataset.tab);
  for(const [inputId] of [['search'],['access-search']])$(inputId).addEventListener('input',e=>{query=e.target.value;category='All';drawCategories();filterRows();});
  $('refresh-btn').onclick=refreshAll;$('refresh-all').onclick=refreshAll;
- $('studio-search').oninput=()=>{if(tab==='studio')renderStudio();};for(const id of ['studio-approved','studio-backups'])$(id).onchange=renderStudioExportSummary;
+ $('studio-search').oninput=()=>{if(tab==='studio')renderStudio();};for(const id of ['studio-approved','studio-backups','studio-hls-only'])$(id).onchange=renderStudioExportSummary;
  $('studio-export-m3u').onclick=()=>studioExport('m3u');$('studio-export-csv').onclick=()=>studioExport('csv');
  $('allow-filtered').onclick=()=>{const existing=allowedIds();for(const g of showing)existing.add(g.id);state.allowed=[...existing];rebuildPlayable();persist();filterRows();};
  $('block-filtered').onclick=()=>{const block=new Set(showing.map(g=>g.id));state.allowed=state.allowed.filter(id=>!block.has(id));rebuildPlayable();if(current&&!isAllowed(current))stop('Channel blocked');persist();filterRows();};
- $('add-source').onsubmit=e=>{e.preventDefault();const url=$('source-url').value.trim();if(!L.urlOk(url)||state.sources.some(s=>s.url===url)){report('Enter an HTTP/HTTPS M3U URL that is not already saved.');return;}
+ $('add-source').onsubmit=e=>{e.preventDefault();const url=$('source-url').value.trim();if(!L.urlOk(url)){report('Enter a valid HTTP/HTTPS playlist URL. Both .m3u and .m3u8 playlists are supported.');return;}const existing=state.sources.find(s=>samePlaylistUrl(s.url,url));if(existing){selectedSourceId=existing.id;renderSources();report(`${existing.title} is already saved. Refreshing it instead of importing a duplicate…`);refreshOne(existing);return;}
  const source={id:'user-'+Date.now(),title:$('source-name').value.trim()||new URL(url).hostname,url};state.sources.push(source);selectedSourceId=source.id;persist();$('source-url').value='';$('source-name').value='';$('add-source-details').open=false;renderSources();refreshOne(source);};
  $('github-form').onsubmit=async e=>{e.preventDefault();const url=$('github-url').value.trim(),root=$('repo-results');root.replaceChildren(element('span','', 'Checking public repository…'));
   try{const entries=await window.streamBoard.discoverGithub(url);root.replaceChildren();if(!entries.length){root.append(element('span','', 'No .m3u or .m3u8 files were found. Try the repository README for published playlist URLs.'));return;}
    for(const item of entries){const row=element('div','repo-result');row.append(element('small','',item.path));const add=element('button','','+ Import');add.onclick=()=>{
-    if(state.sources.some(s=>s.url===item.url)){report('Playlist already saved');return;}
+    const existing=state.sources.find(s=>samePlaylistUrl(s.url,item.url));if(existing){selectedSourceId=existing.id;renderSources();report(`${existing.title} already exists; refreshing.`);refreshOne(existing);return;}
     const source={id:'github-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),title:item.path.split('/').at(-1),url:item.url};state.sources.push(source);selectedSourceId=source.id;persist();renderSources();refreshOne(source);
    };row.append(add);root.append(row);}
   }catch(err){root.replaceChildren(element('span','',err.message));}

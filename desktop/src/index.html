@@ -74,7 +74,7 @@
        <div class="source-detail-actions"><button id="source-detail-refresh" class="btn btn-primary">Refresh</button><button id="source-detail-inspect" class="btn btn-subtle">Full report</button><button id="source-detail-remove" class="btn btn-danger">Remove</button></div>
       </aside>
      </div>
-     <details id="add-source-details" class="management-expander"><summary>Add playlist from URL</summary><form id="add-source" class="source-form"><input id="source-name" aria-label="Playlist name" placeholder="Playlist name (optional)"/><input id="source-url" type="url" aria-label="Playlist URL" placeholder="https://…/channels.m3u" required/><button type="submit" class="btn btn-primary">Add playlist</button></form></details>
+     <details id="add-source-details" class="management-expander"><summary>Add playlist from URL</summary><form id="add-source" class="source-form"><input id="source-name" aria-label="Playlist name" placeholder="Playlist name (optional)"/><input id="source-url" type="url" aria-label="Playlist URL" placeholder="https://…/channels.m3u or .m3u8" required/><button type="submit" class="btn btn-primary">Add playlist</button></form></details>
      <details class="management-expander"><summary>Import from GitHub repository</summary><div class="source-help"><p>Browse published M3U files in a public repository.</p><form id="github-form" class="github-form"><input id="github-url" placeholder="https://github.com/Diljan707/new" aria-label="GitHub repository URL" required/><button class="btn btn-subtle" type="submit">Find playlists</button></form><div id="repo-results" class="repo-results" aria-live="polite"></div></div></details>
      <div id="import-status" class="import-status" role="status">No import running</div>
     </div>
@@ -94,6 +94,7 @@
      <div class="studio-options">
       <label><input type="checkbox" id="studio-approved" checked/> Approved and visible channels only</label>
       <label><input type="checkbox" id="studio-backups"/> Export backup stream URLs too</label>
+      <label><input type="checkbox" id="studio-hls-only"/> HLS-only (.m3u8) — exclude DASH/other feeds from this export</label>
      </div>
      <div class="studio-export-summary" id="studio-export-summary">No channels selected yet</div>
      <div class="studio-actions"><button id="studio-export-m3u" class="btn btn-primary">Export .M3U</button><button id="studio-export-csv" class="btn btn-subtle">Export .CSV</button></div>

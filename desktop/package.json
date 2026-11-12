@@ -1,7 +1,7 @@
 {
   "name": "streamboard-desktop",
   "productName": "StreamBoard IPTV",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "private": true,
   "description": "StreamBoard IPTV Windows with stream diagnostics and task-focused desktop UI, pinned player, Playlist Studio and local HTTP/HTTPS HLS bridge",
   "main": "main.js",
