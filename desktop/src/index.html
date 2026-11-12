@@ -5,28 +5,28 @@
 <body>
 <div class="shell">
  <aside class="sidebar" aria-label="Main navigation">
-  <div class="branding"><div class="brandmark">▶</div><div><strong>streamboard</strong><small>YOUR LIVE TV SPACE</small></div></div>
+  <div class="branding"><div class="brandmark">▶</div><div><strong>streamboard</strong><small>SMART PLAYLIST WORKSPACE</small></div></div>
   <div class="nav-caption">EXPLORE</div>
   <nav class="navigation">
-   <button data-tab="live" class="on" aria-label="Live channels"><span class="nav-icon">◉</span><span>Live channels</span></button>
+   <button data-tab="live" class="on" aria-label="Channels"><span class="nav-icon">◉</span><span>Channels</span></button>
    <button data-tab="favorites" aria-label="Favorites"><span class="nav-icon">☆</span><span>Favorites</span></button>
   </nav>
   <div class="nav-caption secondary-nav">MANAGE</div>
   <nav class="navigation">
-   <button data-tab="access" aria-label="Channel approvals"><span class="nav-icon">☷</span><span>Channel access</span></button>
-   <button data-tab="sources" aria-label="Playlist sources"><span class="nav-icon">☰</span><span>Playlists</span></button>
+   <button data-tab="access" aria-label="Channel approvals"><span class="nav-icon">☷</span><span>Access</span></button>
+   <button data-tab="sources" aria-label="Playlist sources"><span class="nav-icon">☰</span><span>Sources</span></button>
    <button data-tab="studio" aria-label="Playlist Studio"><span class="nav-icon">▤</span><span>Playlist Studio</span></button>
   </nav>
-  <div class="sidebar-foot"><div class="status-led"><span class="dot"></span> LOCAL LIBRARY</div><strong id="side-count">Loading…</strong><small>StreamBoard · Windows 1.3.1</small></div>
+  <div class="sidebar-foot"><div class="status-led"><span class="dot"></span> LOCAL LIBRARY</div><strong id="side-count">Loading…</strong><small>StreamBoard · Windows 1.4</small></div>
  </aside>
  <main class="workspace">
-  <header class="topbar"><div class="heading"><div class="eyebrow">WATCH. DISCOVER. ORGANIZE.</div><h1>Live television <span>made simple.</span></h1></div><div class="top-actions"><span id="stats">Loading channels</span><button id="refresh-btn" class="btn btn-subtle" title="Refresh all playlists">↻ Refresh lists</button></div></header>
+  <header class="topbar"><div class="heading"><div class="eyebrow">STREAMBOARD DESKTOP</div><h1>Live TV control center<span>Watch, organize, and export from one clean workspace.</span></h1></div><div class="top-actions"><span id="stats">Loading channels</span><button id="refresh-btn" class="btn btn-subtle" title="Refresh all playlists">↻ Refresh lists</button></div></header>
   <div class="watch-layout">
    <section class="watch-area" aria-label="Current live stream">
     <div class="section-kicker"><span class="pulsing"></span> NOW WATCHING <span class="watch-area-side"><span class="pinned-marker" aria-label="Player stays visible while browsing">● PINNED PLAYER</span></span></div>
     <div class="player-shell">
      <div class="screen" id="screen"><video id="video" playsinline controls aria-label="Live TV playback"></video>
-      <div class="screen-empty" id="video-overlay"><div class="screen-symbol">▶</div><span>READY WHEN YOU ARE</span><h2 id="overlay-title">Pick a channel to start watching</h2><p id="overlay-subtitle">Keep watching while browsing channels and playlists.</p></div>
+      <div class="screen-empty" id="video-overlay"><div class="screen-symbol">▶</div><span>READY WHEN YOU ARE</span><h2 id="overlay-title">Choose a channel to start</h2><p id="overlay-subtitle">The player stays on screen while you browse channels, playlists, and tools.</p></div>
       <div class="player-toast" id="player-toast" role="status" aria-live="polite"></div>
      </div>
      <div class="now-playing"><div class="now-icon">LIVE</div><div class="now-info"><strong id="playing-title">Nothing playing yet</strong><small id="player-status">Choose an approved channel to begin</small></div><button id="previous" class="round-btn" title="Previous channel" aria-label="Previous channel">‹</button><button id="next" class="round-btn" title="Next channel" aria-label="Next channel">›</button></div>
@@ -36,7 +36,7 @@
     <div class="source-health" id="source-health"><div><strong>Automatic source switching</strong><p>If your stream stops or buffers too long, we'll try the next source.</p></div><span class="health-on">ENABLED</span></div>
    </section>
    <section class="explorer" aria-label="Channel browser">
-    <div class="explore-top"><div><span class="eyebrow" id="explore-eyebrow">YOUR CHANNELS</span><h2 id="panel-title">Browse live TV</h2><p id="panel-subtitle">Pick a channel. Keep watching while you browse.</p></div><span class="count-pill" id="visible-count">0 channels</span></div>
+    <div class="explore-top"><div><span class="eyebrow" id="explore-eyebrow">YOUR CHANNELS</span><h2 id="panel-title">Browse live TV</h2><p id="panel-subtitle">Play a channel and keep browsing without leaving the player.</p></div><span class="count-pill" id="visible-count">0 channels</span></div>
     <div id="catalog-pane" class="catalog-pane">
      <div class="searchbox"><span>⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search channels or categories…" aria-label="Search channels"/></div>
      <div id="chips" class="chips" aria-label="Category filters"></div>
