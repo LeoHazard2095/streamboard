@@ -222,3 +222,23 @@ body.has-player:is([data-view="sources"],[data-view="access"],[data-view="studio
 body.has-player:is([data-view="sources"],[data-view="access"],[data-view="studio"]) .now-info{flex:1;min-width:0}
 .nav-icon{display:block;flex:0 0 18px}
 body:not([data-view="live"]):not([data-view="favorites"]) #refresh-btn{display:none}
+/* v1.6: diagnostics stay collapsed until needed; never compete with channel navigation. */
+.diagnostics{margin-top:10px;background:#101b2a;border:1px solid #2a3a50;border-radius:10px;min-width:0}
+.diagnostics>summary{cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:11px 14px;list-style:none;gap:12px}
+.diagnostics>summary::-webkit-details-marker{display:none}
+.diagnostics>summary span:first-child{display:flex;align-items:center;gap:12px;min-width:0}
+.diagnostics>summary strong{font-size:12px;color:#e5ecf5;white-space:nowrap}
+.diagnostics>summary small{font-size:11px;color:#9db0c8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.diagnostics-chevron{font-size:11px;color:#9bb3cc}
+.diagnostics-content{padding:0 14px 14px;border-top:1px solid #26374b}
+.diagnostics-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}
+.diagnostics-metrics>div{min-width:0;background:#17283a;border-radius:7px;padding:9px 10px;display:flex;flex-direction:column;gap:5px}
+.diagnostics-metrics span{font-size:9px;color:#9aacbe;letter-spacing:.07em}
+.diagnostics-metrics strong{font-size:12px;color:#eef3fa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.diagnostics-reason{font-size:12px;color:#b8c8d9;margin:9px 0}
+.diagnostics-actions{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px}
+.diagnostics-actions .btn{font-size:11px;padding:7px 11px}
+.diagnostics-events{padding:8px 10px;margin:0;list-style:none;background:#0b1421;border:1px solid #243247;border-radius:7px;max-height:160px;overflow:auto;font-size:11px;color:#9fb3ca;font-family:ui-monospace,Consolas,monospace}
+.diagnostics-events li{padding:4px 0;border-bottom:1px solid #1c2c40;overflow-wrap:anywhere}
+.diagnostics-events li:last-child{border:0}
+@media(max-width:650px){.diagnostics-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.diagnostics>summary span:first-child{align-items:flex-start;flex-direction:column;gap:3px}}

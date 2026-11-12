@@ -1,4 +1,4 @@
-# StreamBoard IPTV — Windows v1.3.1 cumulative repair and pinned player
+# StreamBoard IPTV — Windows v1.4.0 cumulative repair and pinned player
 
 This is a **Windows-only cumulative update** over the existing StreamBoard repository. It includes **all** Windows desktop runtime files from the full v1.3 release, including the `stream-bridge.js` and `repo-discovery.js` modules first introduced in v1.2. **You do not need to install v1.2.0 first.** The existing Android project is left unchanged.
 
@@ -13,20 +13,20 @@ This is a **Windows-only cumulative update** over the existing StreamBoard repos
 
 ## Update an existing repository using Codespaces
 
-1. Upload `StreamBoard-IPTV-Windows-v1.3.1-CUMULATIVE-UPDATE.zip` into your **streamboard** GitHub repository's root and commit the upload.
+1. Upload `StreamBoard-IPTV-Windows-v1.4.0-CUMULATIVE-UPDATE.zip` into your **streamboard** GitHub repository's root and commit the upload.
 2. In Codespaces terminal, from repository root:
 
 ```bash
 git pull --rebase origin main
-unzip -o StreamBoard-IPTV-Windows-v1.3.1-CUMULATIVE-UPDATE.zip
-rm -f StreamBoard-IPTV-Windows-v1.3.1-CUMULATIVE-UPDATE.zip
+unzip -o StreamBoard-IPTV-Windows-v1.4.0-CUMULATIVE-UPDATE.zip
+rm -f StreamBoard-IPTV-Windows-v1.4.0-CUMULATIVE-UPDATE.zip
 bash VERIFY_WINDOWS_UPDATE.sh
 git add -A
-git commit -m "StreamBoard Windows v1.3.1 complete installer and pinned player"
+git commit -m "StreamBoard Windows v1.4.0 complete installer and pinned player"
 git push origin main
 ```
 
-3. Open Actions → **Build StreamBoard Windows Desktop (Complete v1.3.1)**. Download the installer artifact after a successful build.
+3. Open Actions → **Build StreamBoard Windows Desktop (Complete v1.4.0)**. Download the installer artifact after a successful build.
 4. Fully close StreamBoard before installing. The same Electron app identity and settings path are retained, so an ordinary same-identity update should preserve local library settings. Back up playlist URLs first if critical.
 
 ## Build verification and limits

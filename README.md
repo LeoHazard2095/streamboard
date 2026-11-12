@@ -1,3 +1,5 @@
+**Latest Windows version: v1.6.0** — see README-WINDOWS-1.6.0.md for diagnostics and recovery changes.
+
 # StreamBoard IPTV — Windows v1.5.0 focused workspace
 
 **Windows v1.5.0** redesigns the UI around separate task-specific workspaces rather than one crowded player-plus-management panel. It preserves the existing Windows application identity, catalog settings, HTTP/HTTPS HLS bridge, Playlist Studio and pinned playback.

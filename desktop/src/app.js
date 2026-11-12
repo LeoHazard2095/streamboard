@@ -6,7 +6,7 @@ const defaults=[
  {id:'live-tg',title:'Live TG TV',url:'https://livetgtv.lovable.app/api/public/playlist.m3u'}];
 let state={},channels=[],category='All',tab='live',query='',showing=[],categoryCounts=new Map(),playable=[],current=null,feeds=[],feedIndex=-1,tried=new Set(),hls=null,quality='auto',generation=0,stallStart=0,refreshing=false;
 let studioExcludedCategories=new Set(),studioExcludedSources=new Set(),selectedSourceId=null;
-let activeList='channel',renderPending=false;const statuses=new Map();const collator=new Intl.Collator(undefined,{numeric:true,sensitivity:'base'});
+let activeList='channel',renderPending=false;const diag=window.StreamDiagnostics,diagLog=diag.createLog();let diagStatus='Idle',attempts=0,recoveryUsed=new Set(),lastFailure='No stream selected.',playbackStarted=false;const statuses=new Map();const collator=new Intl.Collator(undefined,{numeric:true,sensitivity:'base'});
 function element(tag,cls,content){const el=document.createElement(tag);if(cls)el.className=cls;if(content!==undefined)el.textContent=content;return el;}
 function setText(id,value){$(id).textContent=value;}
 function report(value){setText('import-status',value);}
@@ -120,27 +120,38 @@ async function refreshOne(s,{silent=false}={}){statuses.set(s.id,'Loading…');i
 }
 async function refreshAll(){if(refreshing)return;refreshing=true;$('refresh-btn').disabled=true;$('refresh-all').disabled=true;try{for(const s of [...state.sources])await refreshOne(s,{silent:true});if(tab==='sources')renderSources();else switchTab(tab);}finally{refreshing=false;$('refresh-btn').disabled=false;$('refresh-all').disabled=false;}}
 function playerStatus(message){setText('player-status',message);}
-function stop(reason='Select an approved channel'){generation++;const player=$('video');if(hls){hls.destroy();hls=null;}player.pause();player.removeAttribute('src');player.load();current=null;document.body.classList.remove('has-player');feeds=[];tried.clear();$('source').replaceChildren();$('video-overlay').hidden=false;setText('playing-title','Nothing playing yet');playerStatus(reason);setText('overlay-title','Choose a channel to start');setText('overlay-subtitle','Browse approved channels while the player stays visible.');drawVirtual('channel',true);}
+function recordDiag(kind,message){diagLog.push(kind,message);updateDiagnostics();}
+function bufferedAhead(){const v=$('video');try{const t=v.currentTime;for(let i=0;i<v.buffered.length;i++)if(v.buffered.start(i)<=t&&v.buffered.end(i)>=t)return Math.max(0,v.buffered.end(i)-t);}catch{}return 0;}
+function updateDiagnostics(){
+ const v=$('video');setText('diag-connection',diagStatus);setText('diag-resolution',v.videoWidth?`${v.videoWidth} × ${v.videoHeight}`:'—');setText('diag-buffer',current?`${bufferedAhead().toFixed(1)}s`:'—');setText('diag-attempts',String(attempts));setText('diag-reason',lastFailure);
+ setText('diagnostics-brief',current?`${current.name} · ${diagStatus}`:diagStatus);
+ $('retry-feed').disabled=!current||feedIndex<0;
+ const list=$('diag-events');list.replaceChildren();for(const e of diagLog.all().slice(-18).reverse())list.append(element('li','',`${e.at.slice(11,19)} · ${e.kind}: ${e.message}`));
+}
+function diagnosticsReport(){return diag.report({channel:current,feed:feeds[feedIndex],events:diagLog.all(),video:{videoWidth:$('video').videoWidth,videoHeight:$('video').videoHeight,readyState:$('video').readyState,networkState:$('video').networkState,bufferedAhead:bufferedAhead()},attempts,status:diagStatus});}
+function retryCurrent(){if(!current||feedIndex<0)return;recordDiag('retry','Manual retry requested');tried.clear();recoveryUsed.clear();openFeed(feedIndex);}
+
+function stop(reason='Select an approved channel'){generation++;diagStatus='Idle';lastFailure=reason;updateDiagnostics();const player=$('video');if(hls){hls.destroy();hls=null;}player.pause();player.removeAttribute('src');player.load();current=null;document.body.classList.remove('has-player');feeds=[];tried.clear();$('source').replaceChildren();$('video-overlay').hidden=false;setText('playing-title','Nothing playing yet');playerStatus(reason);setText('overlay-title','Choose a channel to start');setText('overlay-subtitle','Browse approved channels while the player stays visible.');drawVirtual('channel',true);}
 function orderedFeeds(g){const options=[...g.feeds];const pref=state.preferred[g.id];const idx=options.findIndex(x=>x.url===pref);if(idx>0)options.unshift(...options.splice(idx,1));return options;}
-function play(g){if(!isAllowed(g))return;current=g;document.body.classList.add('has-player');feeds=orderedFeeds(g);feedIndex=-1;tried.clear();setText('playing-title',g.name);
+function play(g){if(!isAllowed(g))return;current=g;document.body.classList.add('has-player');feeds=orderedFeeds(g);feedIndex=-1;tried.clear();recoveryUsed.clear();attempts=0;playbackStarted=false;diagLog.clear();diagStatus='Connecting';lastFailure='Opening first stream source…';recordDiag('channel',`Selected ${g.name} (${feeds.length} sources)`);setText('playing-title',g.name);
  const sel=$('source');sel.replaceChildren();feeds.forEach((f,i)=>{const o=element('option','',f.sourceName||`Source ${i+1}`);o.value=String(i);sel.append(o);});
  $('video-overlay').hidden=true;quality=$('quality').value;openFeed(0);drawVirtual('channel',true);}
-async function openFeed(i){if(!current||i<0||i>=feeds.length)return;const version=++generation;tried.add(i);feedIndex=i;
+async function openFeed(i){if(!current||i<0||i>=feeds.length)return;const version=++generation;tried.add(i);feedIndex=i;attempts++;playbackStarted=false;diagStatus='Connecting';lastFailure='Connecting to stream server…';recordDiag('connect',`Attempt ${attempts}: ${feeds[i].sourceName||'Source '+(i+1)}`);
  const f=feeds[i],video=$('video');if(hls){hls.destroy();hls=null;}video.pause();video.removeAttribute('src');video.load();stallStart=Date.now();$('source').value=String(i);
  playerStatus(`Connecting · ${f.sourceName||'source'} · ${i+1}/${feeds.length}`);
  let local;
- try{local=await window.streamBoard.openStream(f.url);}catch(e){if(version===generation)failover(e.message);return;}
+ try{local=await window.streamBoard.openStream(f.url);}catch(e){if(version===generation){recordDiag('bridge',String(e.message).replace(/https?:\/\/[^\s]+/g,'[stream URL]'));failover(e.message);}return;}
  if(version!==generation)return;
  const isHls=/\.m3u8?(?:$|\?)/i.test(new URL(f.url).pathname+new URL(f.url).search);
  if(isHls&&window.Hls?.isSupported()){
   hls=new window.Hls({enableWorker:true,lowLatencyMode:false,maxBufferLength:20,backBufferLength:12,manifestLoadingTimeOut:18000,levelLoadingTimeOut:18000,fragLoadingTimeOut:20000});
-  hls.on(window.Hls.Events.MANIFEST_PARSED,()=>{if(version!==generation)return;applyQuality();video.play().catch(()=>playerStatus('Press Play to start watching'));});
-  hls.on(window.Hls.Events.ERROR,(_evt,details)=>{if(version!==generation)return;if(details.fatal)failover(`Stream error: ${details.type}`);});
+  hls.on(window.Hls.Events.MANIFEST_PARSED,()=>{if(version!==generation)return;recordDiag('manifest',`HLS manifest loaded, ${hls.levels.length} quality levels`);applyQuality();video.play().catch(()=>playerStatus('Press Play to start watching'));});
+  hls.on(window.Hls.Events.ERROR,(_evt,details)=>{if(version!==generation)return;if(details.fatal){recordDiag('hls',`${details.type}: ${details.details||'unknown'}${details.response?.code?' · HTTP '+details.response.code:''}`);failover(details.details||details.type);}});
   hls.attachMedia(video);hls.loadSource(local);
  }else{video.src=local;video.play().catch(()=>{if(version===generation)playerStatus('Press Play to start watching');});}
 }
-function failover(reason){if(!current)return;const i=feeds.findIndex((_f,index)=>!tried.has(index));if(i>=0){notice(`Switching source · ${reason}`);openFeed(i);return;}
- const old=current;stop('All sources unavailable');setText('overlay-title',`${old.name} is unavailable`);setText('overlay-subtitle','Check playlist access or try another channel.');notice('No playable alternative was found.');}
+function failover(reason){if(!current)return;lastFailure=diag.explain('stream',reason);diagStatus='Interrupted';recordDiag('failure',`${reason}: ${lastFailure}`);const i=feeds.findIndex((_f,index)=>!tried.has(index));if(i>=0){notice(`Switching source · ${reason}`);openFeed(i);return;}
+ const old=current,explanation=lastFailure;generation++;if(hls){hls.destroy();hls=null;}const video=$('video');video.pause();video.removeAttribute('src');video.load();stallStart=0;diagStatus='Failed';lastFailure=explanation;playerStatus('All sources unavailable · Retry or change channel');$('video-overlay').hidden=false;setText('overlay-title',`${old.name} is unavailable`);setText('overlay-subtitle',explanation+' Retry the source or choose another channel.');updateDiagnostics();$('diagnostics-panel').open=true;notice('All sources failed; retry is available in diagnostics.');}
 function applyQuality(){if(!hls)return;const cap=quality==='auto'?0:Number(quality);hls.currentLevel=-1;
  if(!cap){hls.autoLevelCapping=-1;return;}const levels=hls.levels.map((l,i)=>({i,height:l.height||0})).filter(x=>x.height>0).sort((a,b)=>a.height-b.height);const eligible=levels.filter(x=>x.height<=cap);hls.autoLevelCapping=eligible.length?eligible.at(-1).i:levels.length?levels[0].i:-1;}
 function nextChannel(direction){if(!playable.length)return;let index=playable.findIndex(x=>x.id===current?.id);index=(index+direction+playable.length)%playable.length;play(playable[index]);}
@@ -209,14 +220,14 @@ function setup(){
   }catch(err){root.replaceChildren(element('span','',err.message));}
  };
  $('close-inspect').onclick=()=>$('inspect-dialog').close();
- $('previous').onclick=()=>nextChannel(-1);$('next').onclick=()=>nextChannel(1);
+ $('retry-feed').onclick=retryCurrent;$('clear-diagnostics').onclick=()=>{diagLog.clear();updateDiagnostics();};$('copy-diagnostics').onclick=()=>{navigator.clipboard.writeText(diagnosticsReport()).then(()=>notice('Diagnostics copied')).catch(()=>notice('Copy failed'));};$('previous').onclick=()=>nextChannel(-1);$('next').onclick=()=>nextChannel(1);
  $('quality').onchange=e=>{quality=e.target.value;applyQuality();};$('source').onchange=e=>setSource(Number(e.target.value));
  $('fullscreen').onclick=()=>{const screen=$('screen');if(!document.fullscreenElement)screen.requestFullscreen().catch(()=>notice('Fullscreen not available'));else document.exitFullscreen().catch(()=>{});};
  document.addEventListener('keydown',e=>{if(e.target instanceof HTMLInputElement||e.target instanceof HTMLSelectElement||e.target instanceof HTMLTextAreaElement)return;
   if(e.key.toLowerCase()==='f'){$('fullscreen').click();}else if(e.key==='ArrowRight'&&e.ctrlKey)nextChannel(1);else if(e.key==='ArrowLeft'&&e.ctrlKey)nextChannel(-1);});
- const video=$('video');video.addEventListener('playing',()=>{stallStart=0;if(current)playerStatus(`● LIVE · ${feeds[feedIndex]?.sourceName||'Source'}`);});
- video.addEventListener('waiting',()=>{if(current&&!stallStart)stallStart=Date.now();});video.addEventListener('error',()=>{if(current&&feedIndex>=0)failover('Media playback error');});
- setInterval(()=>{if(current&&stallStart&&Date.now()-stallStart>30000){stallStart=0;failover('Playback stalled');}},3500);
+ const video=$('video');video.addEventListener('playing',()=>{stallStart=0;if(current){diagStatus='Playing';lastFailure='Stream is playing';if(!playbackStarted){playbackStarted=true;recordDiag('playback',`Playing ${video.videoWidth||'?'} × ${video.videoHeight||'?'}`);}playerStatus(`● LIVE · ${feeds[feedIndex]?.sourceName||'Source'}`);updateDiagnostics();}});
+ video.addEventListener('waiting',()=>{if(current&&!stallStart){stallStart=Date.now();diagStatus='Buffering';recordDiag('buffer','Playback waiting for data');}});video.addEventListener('error',()=>{if(current&&feedIndex>=0){recordDiag('media',`HTMLMediaElement error ${video.error?.code||'unknown'}: ${video.error?.message||'no details'}`);failover('Media playback error');}});
+ setInterval(()=>{if(current&&stallStart&&Date.now()-stallStart>30000){stallStart=0;const index=feedIndex;if(!recoveryUsed.has(index)){recoveryUsed.add(index);recordDiag('recovery','Stall threshold reached; retrying current source once');openFeed(index);}else failover('Playback stalled after retry');}updateDiagnostics();},3500);
 }
 async function init(){setup();try{state=await window.streamBoard.load();}catch(e){state={};report('Settings error: '+e.message);}if(!state||typeof state!=='object')state={};
  for(const k of ['channels','allowed','favorites','hiddenCategories'])if(!Array.isArray(state[k]))state[k]=[];
