@@ -17,7 +17,7 @@
    <button data-tab="sources" aria-label="Playlist sources"><svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-9 5 9 5 9-5-9-5zM3 12l9 5 9-5M3 16l9 5 9-5"/></svg><span>Sources</span></button>
    <button data-tab="studio" aria-label="Playlist Studio"><svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span>Playlist Studio</span></button>
   </nav>
-  <div class="sidebar-foot"><div class="status-led"><span class="dot"></span> LOCAL LIBRARY</div><strong id="side-count">Loading…</strong><small>StreamBoard · Windows 1.6</small></div>
+  <div class="sidebar-foot"><div class="status-led"><span class="dot"></span> LOCAL LIBRARY</div><strong id="side-count">Loading…</strong><small>StreamBoard · Windows 1.7</small></div>
  </aside>
  <main class="workspace">
   <header class="topbar"><div class="heading"><div class="eyebrow" id="page-eyebrow">WATCH</div><h1 id="page-title">Channels</h1><p id="page-description" class="page-description">Watch and browse your approved channels.</p></div><div class="top-actions"><span id="stats">Loading channels</span><button id="refresh-btn" class="btn btn-subtle" title="Refresh playlists">↻ Refresh playlists</button></div></header>
@@ -30,7 +30,7 @@
       <div class="player-toast" id="player-toast" role="status" aria-live="polite"></div>
      </div>
      <div class="now-playing"><div class="now-icon">LIVE</div><div class="now-info"><strong id="playing-title">Nothing playing yet</strong><small id="player-status">Choose an approved channel to begin</small></div><button id="open-player-view" class="btn btn-subtle player-return" title="Open full player">Open player</button><button id="previous" class="round-btn" title="Previous channel" aria-label="Previous channel">‹</button><button id="next" class="round-btn" title="Next channel" aria-label="Next channel">›</button></div>
-     <div class="player-toolbar"><label>QUALITY <select id="quality" aria-label="Resolution limit"><option value="auto">Auto (recommended)</option><option value="360">Up to 360p</option><option value="480">Up to 480p</option><option value="720">Up to 720p</option><option value="1080">Up to 1080p</option></select></label><label>STREAM SOURCE <select id="source" aria-label="Choose channel source"><option>None</option></select></label><button id="compact-view" class="btn btn-subtle" title="Reduce player height to make room for browsing" aria-pressed="false">▣ Compact</button><button id="fullscreen" class="btn btn-full" title="Fullscreen video (F)">⛶ Fullscreen</button></div>
+     <div class="player-toolbar"><label>QUALITY <select id="quality" aria-label="Resolution limit"><option value="auto">Auto (recommended)</option><option value="360">Up to 360p</option><option value="480">Up to 480p</option><option value="720">Up to 720p</option><option value="1080">Up to 1080p</option></select></label><label>STREAM SOURCE <select id="source" aria-label="Choose channel source"><option>None</option></select></label><button id="edit-playing" class="btn btn-subtle" title="Edit URLs for the playing channel">Edit URLs</button><button id="compact-view" class="btn btn-subtle" title="Reduce player height to make room for browsing" aria-pressed="false">▣ Compact</button><button id="fullscreen" class="btn btn-full" title="Fullscreen video (F)">⛶ Fullscreen</button></div>
     </div>
 
     <details class="diagnostics" id="diagnostics-panel">
@@ -47,7 +47,7 @@
    <section class="explorer" aria-label="Channel browser">
     <div class="explore-top"><div><span class="eyebrow" id="explore-eyebrow">YOUR CHANNELS</span><h2 id="panel-title">Browse live TV</h2><p id="panel-subtitle">Play a channel and keep browsing without leaving the player.</p></div><span class="count-pill" id="visible-count">0 channels</span></div>
     <div id="catalog-pane" class="catalog-pane">
-     <div class="catalog-tools"><div class="searchbox"><span>⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search channel name…" aria-label="Search channels"/></div><label class="category-select-wrap"><span>Category</span><select id="category-select" aria-label="Filter channel category"><option value="All">All categories</option></select></label></div>
+     <div class="catalog-tools"><button id="manage-channel-urls" class="btn btn-subtle" title="Find and edit all channel URLs">Manage URLs</button><div class="searchbox"><span>⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search channel name…" aria-label="Search channels"/></div><label class="category-select-wrap"><span>Category</span><select id="category-select" aria-label="Filter channel category"><option value="All">All categories</option></select></label></div>
      <div id="chips" class="chips" aria-label="Quick category filters" hidden></div>
      <div class="list-heading"><span>CHANNEL DIRECTORY</span><span id="directory-count">0 results</span></div>
      <div id="channel-viewport" class="list-viewport" tabindex="0" aria-label="Available channels"><div id="channel-list" class="virtual-list"></div></div>
@@ -104,7 +104,10 @@
   </div>
  </main>
 </div>
+<dialog id="editor-dialog" class="editor-dialog"><div class="dialog-top"><button id="editor-back" class="btn btn-subtle" hidden>← All channels</button><strong id="editor-title">Channel sources</strong><button id="close-editor" class="btn btn-subtle">Close</button></div>
+<p id="editor-description" class="editor-hint">Search for any channel to manage its URLs.</p><input id="editor-search" type="search" autocomplete="off" placeholder="Search all channel names…" aria-label="Find a channel"/><div id="editor-search-results" class="editor-search-results"></div><div id="editor-feeds"></div>
+<div class="editor-bottom"><button id="editor-add-toggle" class="btn btn-subtle" hidden>+ Add stream URL</button><form id="editor-add-form" hidden><label>Source name<input id="editor-add-name" maxlength="80" placeholder="Backup source"/></label><label>Stream URL<input id="editor-add-url" type="url" required placeholder="https://example.org/live.m3u8"/></label><button class="btn btn-primary" type="submit">Save new source</button></form><p id="editor-message" role="status" aria-live="polite"></p></div></dialog>
 <dialog id="inspect-dialog" class="inspect-dialog"><div class="dialog-top"><strong>Playlist details</strong><button id="close-inspect" class="btn btn-subtle">Close</button></div><pre id="inspect-text"></pre></dialog>
 <script src="hls.min.js"></script><script src="logic.js"></script>
-<script src="diagnostics.js"></script><script src="analyzer.js"></script><script src="app.js"></script>
+<script src="diagnostics.js"></script><script src="channel-editor.js"></script><script src="analyzer.js"></script><script src="app.js"></script>
 </body></html>

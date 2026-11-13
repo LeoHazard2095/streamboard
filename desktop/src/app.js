@@ -1,5 +1,5 @@
 'use strict';
-const L=window.StreamLogic,A=window.StreamAnalyzer,$=id=>document.getElementById(id),ROW=82;
+const L=window.StreamLogic,A=window.StreamAnalyzer,E=window.StreamChannelEditor,$=id=>document.getElementById(id),ROW=82;
 const defaults=[
  {id:'bdix',title:'BDIX IPTV',url:'https://raw.githubusercontent.com/saeidrahmanbd/BDIX-IPTV/main/IPTV-Playlist.m3u'},
  {id:'vip',title:'VIP KB Pro',url:'https://raw.githubusercontent.com/Mrbotrx/VIP-m3u-playlist/refs/heads/main/Vip%20playlists/vip_kbpro.m3u8'},
@@ -16,7 +16,7 @@ function persist(){return window.streamBoard.save(state).catch(e=>report('Save f
 const allowedIds=()=>new Set(state.allowed);const hiddenNames=()=>new Set(state.hiddenCategories);const favoriteIds=()=>new Set(state.favorites);
 function isAllowed(g){return state.allowed.includes(g.id)&&!state.hiddenCategories.includes(g.category);}
 function toggle(list,id){const index=list.indexOf(id);if(index<0)list.push(id);else list.splice(index,1);}
-function rebuildCatalog(){channels=L.merge(state.channels);for(const ch of channels)if(state.categoryOverrides[ch.id])ch.category=state.categoryOverrides[ch.id];categoryCounts=new Map();for(const ch of channels)categoryCounts.set(ch.category,(categoryCounts.get(ch.category)||0)+1);rebuildPlayable();}
+function rebuildCatalog(){channels=E.apply(L.merge(state.channels),state.channelEdits);for(const ch of channels)if(state.categoryOverrides[ch.id])ch.category=state.categoryOverrides[ch.id];categoryCounts=new Map();for(const ch of channels)categoryCounts.set(ch.category,(categoryCounts.get(ch.category)||0)+1);rebuildPlayable();}
 function rebuildPlayable(){playable=channels.filter(isAllowed);setText('stats',`${playable.length.toLocaleString()} approved · ${channels.length.toLocaleString()} channels`);setText('side-count',`${channels.length.toLocaleString()} channel entries`);}
 function filterRows(){const needles=query.trim().toLocaleLowerCase();const favorites=favoriteIds();
  showing=channels.filter(g=>(tab==='access'||isAllowed(g))&&(tab!=='favorites'||favorites.has(g.id))&&(category==='All'||g.category===category)&&(!needles||`${g.name} ${g.category} ${g.language||''}`.toLocaleLowerCase().includes(needles)));
@@ -34,8 +34,8 @@ function drawVirtual(type,force=false){if(activeList!==type)return;const viewpor
   const g=showing[i];const isAccess=type==='access';const row=element('div',isAccess?'access-row':'channel-row'+(current?.id===g.id?' selected':''));row.style.top=(i*ROW)+'px';row.tabIndex=0;
   row.setAttribute('role',isAccess?'group':'button');row.setAttribute('aria-label',isAccess?`Approve ${g.name}`:`Play ${g.name}`);row.append(logo(g));
   const info=element('div','row-details');info.append(element('strong','',g.name));info.append(element('small','',`${g.category}  ·  ${g.feeds.length} source${g.feeds.length===1?'':'s'}${g.language?'  ·  '+g.language:''}`));row.append(info);
-  if(isAccess){const input=element('input','checkbox');input.type='checkbox';input.checked=approved.has(g.id);input.setAttribute('aria-label','Allow '+g.name);input.onchange=()=>{toggle(state.allowed,g.id);rebuildPlayable();if(current&&!isAllowed(current))stop('Channel access disabled');persist();drawVirtual('access',true);};row.append(input);row.onclick=e=>{if(e.target===input)return;input.click();};}
-  else{const star=element('button','star'+(favorite.has(g.id)?' active':''),favorite.has(g.id)?'★':'☆');star.title='Toggle favorite';star.setAttribute('aria-label',`Favorite ${g.name}`);star.onclick=e=>{e.stopPropagation();toggle(state.favorites,g.id);persist();if(tab==='favorites')filterRows();else drawVirtual('channel',true);};row.append(star);row.append(element('span','row-play','▶'));row.onclick=()=>play(g);row.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();play(g);}};}
+  if(isAccess){const edit=element('button','edit-channel','Edit');edit.title='Edit stream URLs';edit.onclick=e=>{e.stopPropagation();openChannelEditor(g.id);};row.append(edit);const input=element('input','checkbox');input.type='checkbox';input.checked=approved.has(g.id);input.setAttribute('aria-label','Allow '+g.name);input.onchange=()=>{toggle(state.allowed,g.id);rebuildPlayable();if(current&&!isAllowed(current))stop('Channel access disabled');persist();drawVirtual('access',true);};row.append(input);row.onclick=e=>{if(e.target===input)return;input.click();};}
+  else{const edit=element('button','edit-channel','Edit');edit.title='Edit stream URLs';edit.setAttribute('aria-label',`Edit streams for ${g.name}`);edit.onclick=e=>{e.stopPropagation();openChannelEditor(g.id);};row.append(edit);const star=element('button','star'+(favorite.has(g.id)?' active':''),favorite.has(g.id)?'★':'☆');star.title='Toggle favorite';star.setAttribute('aria-label',`Favorite ${g.name}`);star.onclick=e=>{e.stopPropagation();toggle(state.favorites,g.id);persist();if(tab==='favorites')filterRows();else drawVirtual('channel',true);};row.append(star);row.append(element('span','row-play','▶'));row.onclick=()=>play(g);row.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();play(g);}};}
   fragment.append(row);
  }
  holder.append(fragment);
@@ -134,7 +134,7 @@ function retryCurrent(){if(!current||feedIndex<0)return;recordDiag('retry','Manu
 
 function stop(reason='Select an approved channel'){generation++;diagStatus='Idle';lastFailure=reason;updateDiagnostics();const player=$('video');if(hls){hls.destroy();hls=null;}player.pause();player.removeAttribute('src');player.load();current=null;document.body.classList.remove('has-player');feeds=[];tried.clear();$('source').replaceChildren();$('video-overlay').hidden=false;setText('playing-title','Nothing playing yet');playerStatus(reason);setText('overlay-title','Choose a channel to start');setText('overlay-subtitle','Browse approved channels while the player stays visible.');drawVirtual('channel',true);}
 function orderedFeeds(g){const options=[...g.feeds];const pref=state.preferred[g.id];const idx=options.findIndex(x=>x.url===pref);if(idx>0)options.unshift(...options.splice(idx,1));return options;}
-function play(g){if(!isAllowed(g))return;current=g;document.body.classList.add('has-player');feeds=orderedFeeds(g);feedIndex=-1;tried.clear();recoveryUsed.clear();attempts=0;playbackStarted=false;diagLog.clear();diagStatus='Connecting';lastFailure='Opening first stream source…';recordDiag('channel',`Selected ${g.name} (${feeds.length} sources)`);setText('playing-title',g.name);
+function play(g){if(!isAllowed(g))return;if(!g.feeds.length){openChannelEditor(g.id);setText('editor-message','No active stream URLs. Add a URL to play this channel.');return;}current=g;document.body.classList.add('has-player');feeds=orderedFeeds(g);feedIndex=-1;tried.clear();recoveryUsed.clear();attempts=0;playbackStarted=false;diagLog.clear();diagStatus='Connecting';lastFailure='Opening first stream source…';recordDiag('channel',`Selected ${g.name} (${feeds.length} sources)`);setText('playing-title',g.name);
  const sel=$('source');sel.replaceChildren();feeds.forEach((f,i)=>{const o=element('option','',f.sourceName||`Source ${i+1}`);o.value=String(i);sel.append(o);});
  $('video-overlay').hidden=true;quality=$('quality').value;openFeed(0);drawVirtual('channel',true);}
 async function openFeed(i){if(!current||i<0||i>=feeds.length)return;const version=++generation;tried.add(i);feedIndex=i;attempts++;playbackStarted=false;diagStatus='Connecting';lastFailure='Connecting to stream server…';recordDiag('connect',`Attempt ${attempts}: ${feeds[i].sourceName||'Source '+(i+1)}`);
@@ -158,7 +158,7 @@ function applyQuality(){if(!hls)return;const cap=quality==='auto'?0:Number(quali
  if(!cap){hls.autoLevelCapping=-1;return;}const levels=hls.levels.map((l,i)=>({i,height:l.height||0})).filter(x=>x.height>0).sort((a,b)=>a.height-b.height);const eligible=levels.filter(x=>x.height<=cap);hls.autoLevelCapping=eligible.length?eligible.at(-1).i:levels.length?levels[0].i:-1;}
 function nextChannel(direction){if(!playable.length)return;let index=playable.findIndex(x=>x.id===current?.id);index=(index+direction+playable.length)%playable.length;play(playable[index]);}
 function setSource(index){if(!current||!feeds[index])return;state.preferred[current.id]=feeds[index].url;persist();tried.clear();openFeed(index);}
-function studioEntries(){return A.choose(channels,{categories:[...categoryCounts.keys()].filter(c=>!studioExcludedCategories.has(c)),sources:state.sources.map(s=>s.id).filter(id=>!studioExcludedSources.has(id)),allowed:state.allowed,hiddenCategories:state.hiddenCategories,preferred:state.preferred,approvedOnly:$('studio-approved').checked,includeAlternatives:$('studio-backups').checked,hlsOnly:$('studio-hls-only').checked});}
+function studioEntries(){return A.choose(channels,{categories:[...categoryCounts.keys()].filter(c=>!studioExcludedCategories.has(c)),sources:[...state.sources.map(s=>s.id).filter(id=>!studioExcludedSources.has(id)),'manual'],allowed:state.allowed,hiddenCategories:state.hiddenCategories,preferred:state.preferred,approvedOnly:$('studio-approved').checked,includeAlternatives:$('studio-backups').checked,hlsOnly:$('studio-hls-only').checked});}
 function studioHeader(label,value){const div=element('div','studio-metric');div.append(element('strong','',Number(value).toLocaleString()),element('small','',label));return div;}
 function studioCheck(label,checked,callback){const box=element('label','studio-check'),input=element('input');input.type='checkbox';input.checked=checked;input.onchange=()=>callback(input.checked);box.append(input,element('span','',label));return box;}
 function renderStudio(){
@@ -197,6 +197,35 @@ function setCompactPlayer(compact){
  button.title=compact?'Restore larger video':'Reduce player height for more channel browsing';
  try{localStorage.setItem('streamboard-compact-player',compact?'1':'0');}catch{}
 }
+let editingChannelId=null;
+function searchEditableChannels(){
+ const term=$('editor-search').value.trim().toLocaleLowerCase();const root=$('editor-search-results');root.replaceChildren();
+ if(!term){root.append(element('p','editor-hint','Search by channel name or category, including channels that are not approved.'));return;}
+ const matches=channels.filter(g=>`${g.name} ${g.category}`.toLocaleLowerCase().includes(term)).slice(0,60);
+ for(const channel of matches){const button=element('button','editor-search-item',`${channel.name}  ·  ${channel.feeds.length} source(s)`);button.onclick=()=>openChannelEditor(channel.id);root.append(button);}
+ if(!matches.length)root.append(element('p','editor-hint','No matching channels.'));
+}
+function openChannelEditor(id){
+ const channel=channels.find(x=>x.id===id);if(!channel)return;editingChannelId=id;$('editor-search-results').hidden=true;$('editor-search').hidden=true;$('editor-back').hidden=false;$('editor-add-toggle').hidden=false;
+ setText('editor-title',channel.name);setText('editor-description',`${channel.category} · ${channel.feeds.length} active stream URL(s). Changes are retained after playlist refresh.`);
+ $('editor-add-form').hidden=true;setText('editor-message','');const root=$('editor-feeds');root.replaceChildren();channel.feeds.forEach((feed,i)=>{
+  const row=element('div','editor-feed');const meta=element('div','editor-feed-head');meta.append(element('strong','',`${i+1}. ${feed.sourceName||'Source'}`),element('small','',feed.manualEdit?'Custom / edited':'Imported'));
+  const name=element('input');name.type='text';name.maxLength=80;name.value=feed.sourceName||'';name.placeholder='Source label';name.setAttribute('aria-label',`Source ${i+1} label`);
+  const url=element('input');url.type='url';url.value=feed.url;url.placeholder='https://…/live.m3u8';url.setAttribute('aria-label',`Source ${i+1} URL`);
+  const actions=element('div','editor-feed-actions');const save=element('button','btn btn-primary','Save changes');save.onclick=()=>{
+   try{const edit=E.saveFeed(state.channelEdits[id],feed.originalUrl,url.value.trim(),name.value);if(!feed.originalUrl&&feed.url!==url.value.trim())edit.extras=edit.extras.filter(x=>x.url!==feed.url);state.channelEdits[id]=edit;updateEditedChannel(id);setText('editor-message','Stream changes saved locally.');}catch(e){setText('editor-message',e.message);}
+  };const remove=element('button','btn btn-subtle','Remove');remove.onclick=()=>{if(channel.feeds.length===1&&!window.confirm('This is the final stream URL. The channel will have no playable source. Remove it?'))return;state.channelEdits[id]=E.removeFeed(state.channelEdits[id],feed);updateEditedChannel(id);setText('editor-message','Stream removed.');};actions.append(save,remove);
+  if(feed.originalUrl&&feed.manualEdit){const reset=element('button','btn btn-subtle','Restore imported URL');reset.onclick=()=>{state.channelEdits[id]=E.restore(state.channelEdits[id],feed.originalUrl);updateEditedChannel(id);};actions.append(reset);}
+  row.append(meta,name,url,actions);root.append(row);
+ });
+ if(!channel.feeds.length)root.append(element('p','editor-hint','No active sources. Add a new stream below.'));
+ if(!$('editor-dialog').open)$('editor-dialog').showModal();
+}
+function updateEditedChannel(id){
+ const oldCurrent=current?.id;const oldUrl=feeds[feedIndex]?.url;
+ rebuildCatalog();persist();if(oldCurrent===id){const refreshed=channels.find(x=>x.id===id);if(!refreshed||!refreshed.feeds.length){stop('No stream URLs available');}else if(refreshed.feeds.some(f=>f.url===oldUrl)){current=refreshed;feeds=orderedFeeds(refreshed);const sel=$('source');sel.replaceChildren();feeds.forEach((f,i)=>{const o=element('option','',f.sourceName||`Source ${i+1}`);o.value=String(i);sel.append(o);});feedIndex=feeds.findIndex(f=>f.url===oldUrl);sel.value=String(feedIndex);}else play(refreshed);}
+ if(tab==='studio')renderStudio();else if(tab==='sources')renderSources();else filterRows();openChannelEditor(id);
+}
 function setup(){
  let compact=false;try{compact=localStorage.getItem('streamboard-compact-player')==='1';}catch{}
  setCompactPlayer(compact);
@@ -221,6 +250,14 @@ function setup(){
    };row.append(add);root.append(row);}
   }catch(err){root.replaceChildren(element('span','',err.message));}
  };
+ $('manage-channel-urls').onclick=()=>{$('editor-dialog').showModal();$('editor-add-toggle').hidden=true;$('editor-add-form').hidden=true;$('editor-search').hidden=false;$('editor-search-results').hidden=false;$('editor-back').hidden=true;setText('editor-title','Find a channel');setText('editor-description','Search the full library and edit its stream URLs.');$('editor-feeds').replaceChildren();$('editor-add-form').hidden=true;$('editor-search').focus();searchEditableChannels();};
+ $('editor-search').oninput=searchEditableChannels;
+ $('editor-back').onclick=()=>{$('editor-search').hidden=false;$('editor-search-results').hidden=false;$('editor-back').hidden=true;$('editor-add-form').hidden=true;$('editor-add-toggle').hidden=true;$('editor-feeds').replaceChildren();setText('editor-title','Find a channel');setText('editor-description','Search the full library and edit its stream URLs.');searchEditableChannels();};
+ $('close-editor').onclick=()=>$('editor-dialog').close();
+ $('editor-dialog').addEventListener('close',()=>{$('editor-add-form').hidden=true;});
+ $('editor-add-toggle').onclick=()=>{$('editor-add-form').hidden=!$('editor-add-form').hidden;$('editor-add-url').focus();};
+ $('editor-add-form').onsubmit=e=>{e.preventDefault();const id=editingChannelId;if(!id)return;try{state.channelEdits[id]=E.saveFeed(state.channelEdits[id],null,$('editor-add-url').value.trim(),$('editor-add-name').value);$('editor-add-url').value='';$('editor-add-name').value='';$('editor-add-form').hidden=true;updateEditedChannel(id);setText('editor-message','New backup stream saved.');}catch(err){setText('editor-message',err.message);}};
+ $('edit-playing').onclick=()=>{if(current)openChannelEditor(current.id);};
  $('close-inspect').onclick=()=>$('inspect-dialog').close();
  $('retry-feed').onclick=retryCurrent;$('clear-diagnostics').onclick=()=>{diagLog.clear();updateDiagnostics();};$('copy-diagnostics').onclick=()=>{navigator.clipboard.writeText(diagnosticsReport()).then(()=>notice('Diagnostics copied')).catch(()=>notice('Copy failed'));};$('previous').onclick=()=>nextChannel(-1);$('next').onclick=()=>nextChannel(1);
  $('quality').onchange=e=>{quality=e.target.value;applyQuality();};$('source').onchange=e=>setSource(Number(e.target.value));
@@ -233,7 +270,7 @@ function setup(){
 }
 async function init(){setup();try{state=await window.streamBoard.load();}catch(e){state={};report('Settings error: '+e.message);}if(!state||typeof state!=='object')state={};
  for(const k of ['channels','allowed','favorites','hiddenCategories'])if(!Array.isArray(state[k]))state[k]=[];
- if(!Array.isArray(state.sources))state.sources=[...defaults];if(!state.preferred)state.preferred={};if(!state.categoryOverrides||typeof state.categoryOverrides!=='object')state.categoryOverrides={};
+ if(!Array.isArray(state.sources))state.sources=[...defaults];if(!state.channelEdits||typeof state.channelEdits!=='object')state.channelEdits={};if(!state.preferred)state.preferred={};if(!state.categoryOverrides||typeof state.categoryOverrides!=='object')state.categoryOverrides={};
  rebuildCatalog();switchTab('live');if(!state.channels.length)refreshAll();
 }
 init();

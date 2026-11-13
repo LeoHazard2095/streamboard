@@ -1,3 +1,5 @@
+**Latest Windows release: v1.7.0** — See `README-WINDOWS-1.7.0.md` for searchable per-channel stream URL management, editing, manual backup URLs and persistent overrides.
+
 **Latest Windows version: v1.6.1** — see README-WINDOWS-1.6.1.md for playlist import and stream-format improvements.
 
 # StreamBoard IPTV — Windows v1.5.0 focused workspace

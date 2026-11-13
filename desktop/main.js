@@ -27,8 +27,13 @@ function safeState(input){
  const sources=(Array.isArray(input.sources)?input.sources:[]).slice(0,100).filter(s=>s&&validUrl(s.url)).map(s=>({id:str(s.id),title:str(s.title),url:str(s.url)}));
  const channels=(Array.isArray(input.channels)?input.channels:[]).slice(0,60000).filter(c=>c&&validUrl(c.url)).map(c=>({name:str(c.name),url:str(c.url),logo:str(c.logo),tvgId:str(c.tvgId),group:str(c.group),category:str(c.category),language:str(c.language),country:str(c.country),sourceId:str(c.sourceId),sourceName:str(c.sourceName)}));
  const preferred={};for(const [k,v] of Object.entries(input.preferred||{}).slice(0,60000)){if(validUrl(v))preferred[str(k)]=v;}
+ const channelEdits={};for(const [id,edit] of Object.entries(input.channelEdits||{}).slice(0,60000)){
+  if(!edit||typeof edit!=='object')continue;const replacements={};
+  for(const [original,patch] of Object.entries(edit.replacements||{}).slice(0,80))if(validUrl(original)&&patch&&validUrl(patch.url))replacements[str(original)]={url:str(patch.url),sourceName:str(patch.sourceName).slice(0,80)};
+  channelEdits[str(id)]={replacements,removed:(Array.isArray(edit.removed)?edit.removed:[]).filter(validUrl).slice(0,80).map(str),extras:(Array.isArray(edit.extras)?edit.extras:[]).filter(x=>x&&validUrl(x.url)).slice(0,80).map(x=>({url:str(x.url),sourceName:str(x.sourceName).slice(0,80)}))};
+ }
  const categoryOverrides={};for(const [id,label] of Object.entries(input.categoryOverrides||{}).slice(0,60000)){if(typeof label==='string'&&label.trim())categoryOverrides[str(id)]=str(label).slice(0,42);}
- return {sources,channels,categoryOverrides,allowed:(input.allowed||[]).slice(0,60000).map(str),favorites:(input.favorites||[]).slice(0,60000).map(str),hiddenCategories:(input.hiddenCategories||[]).slice(0,500).map(str),preferred,liveTGAdded:true};
+ return {sources,channels,channelEdits,categoryOverrides,allowed:(input.allowed||[]).slice(0,60000).map(str),favorites:(input.favorites||[]).slice(0,60000).map(str),hiddenCategories:(input.hiddenCategories||[]).slice(0,500).map(str),preferred,liveTGAdded:true};
 }
 function trusted(event){if(!main||event.sender!==main.webContents)throw Error('Unauthorized window');}
 app.whenReady().then(async()=>{
