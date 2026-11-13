@@ -1,5 +1,5 @@
 'use strict';
-const L=window.StreamLogic,A=window.StreamAnalyzer,E=window.StreamChannelEditor,$=id=>document.getElementById(id),ROW=82;
+const L=window.StreamLogic,A=window.StreamAnalyzer,E=window.StreamChannelEditor,$=id=>document.getElementById(id),ROW=64;
 const defaults=[
  {id:'bdix',title:'BDIX IPTV',url:'https://raw.githubusercontent.com/saeidrahmanbd/BDIX-IPTV/main/IPTV-Playlist.m3u'},
  {id:'vip',title:'VIP KB Pro',url:'https://raw.githubusercontent.com/Mrbotrx/VIP-m3u-playlist/refs/heads/main/Vip%20playlists/vip_kbpro.m3u8'},
@@ -35,7 +35,7 @@ function drawVirtual(type,force=false){if(activeList!==type)return;const viewpor
   row.setAttribute('role',isAccess?'group':'button');row.setAttribute('aria-label',isAccess?`Approve ${g.name}`:`Play ${g.name}`);row.append(logo(g));
   const info=element('div','row-details');info.append(element('strong','',g.name));info.append(element('small','',`${g.category}  ·  ${g.feeds.length} source${g.feeds.length===1?'':'s'}${g.language?'  ·  '+g.language:''}`));row.append(info);
   if(isAccess){const edit=element('button','edit-channel','Edit');edit.title='Edit stream URLs';edit.onclick=e=>{e.stopPropagation();openChannelEditor(g.id);};row.append(edit);const input=element('input','checkbox');input.type='checkbox';input.checked=approved.has(g.id);input.setAttribute('aria-label','Allow '+g.name);input.onchange=()=>{toggle(state.allowed,g.id);rebuildPlayable();if(current&&!isAllowed(current))stop('Channel access disabled');persist();drawVirtual('access',true);};row.append(input);row.onclick=e=>{if(e.target===input)return;input.click();};}
-  else{const edit=element('button','edit-channel','Edit');edit.title='Edit stream URLs';edit.setAttribute('aria-label',`Edit streams for ${g.name}`);edit.onclick=e=>{e.stopPropagation();openChannelEditor(g.id);};row.append(edit);const star=element('button','star'+(favorite.has(g.id)?' active':''),favorite.has(g.id)?'★':'☆');star.title='Toggle favorite';star.setAttribute('aria-label',`Favorite ${g.name}`);star.onclick=e=>{e.stopPropagation();toggle(state.favorites,g.id);persist();if(tab==='favorites')filterRows();else drawVirtual('channel',true);};row.append(star);row.append(element('span','row-play','▶'));row.onclick=()=>play(g);row.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();play(g);}};}
+  else{const edit=element('button','edit-channel','Edit');edit.title='Edit stream URLs';edit.setAttribute('aria-label',`Edit streams for ${g.name}`);edit.onclick=e=>{e.stopPropagation();openChannelEditor(g.id);};row.append(edit);const star=element('button','star'+(favorite.has(g.id)?' active':''),favorite.has(g.id)?'★':'☆');star.title='Toggle favorite';star.setAttribute('aria-label',`Favorite ${g.name}`);star.onclick=e=>{e.stopPropagation();toggle(state.favorites,g.id);persist();if(tab==='favorites')filterRows();else drawVirtual('channel',true);};row.append(star);row.onclick=()=>play(g);row.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();play(g);}};}
   fragment.append(row);
  }
  holder.append(fragment);

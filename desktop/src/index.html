@@ -17,7 +17,7 @@
    <button data-tab="sources" aria-label="Playlist sources"><svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-9 5 9 5 9-5-9-5zM3 12l9 5 9-5M3 16l9 5 9-5"/></svg><span>Sources</span></button>
    <button data-tab="studio" aria-label="Playlist Studio"><svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span>Playlist Studio</span></button>
   </nav>
-  <div class="sidebar-foot"><div class="status-led"><span class="dot"></span> LOCAL LIBRARY</div><strong id="side-count">Loading…</strong><small>StreamBoard · Windows 1.7</small></div>
+  <div class="sidebar-foot"><div class="status-led"><span class="dot"></span> LOCAL LIBRARY</div><strong id="side-count">Loading…</strong><small>StreamBoard · Windows 1.7.1</small></div>
  </aside>
  <main class="workspace">
   <header class="topbar"><div class="heading"><div class="eyebrow" id="page-eyebrow">WATCH</div><h1 id="page-title">Channels</h1><p id="page-description" class="page-description">Watch and browse your approved channels.</p></div><div class="top-actions"><span id="stats">Loading channels</span><button id="refresh-btn" class="btn btn-subtle" title="Refresh playlists">↻ Refresh playlists</button></div></header>
@@ -47,9 +47,9 @@
    <section class="explorer" aria-label="Channel browser">
     <div class="explore-top"><div><span class="eyebrow" id="explore-eyebrow">YOUR CHANNELS</span><h2 id="panel-title">Browse live TV</h2><p id="panel-subtitle">Play a channel and keep browsing without leaving the player.</p></div><span class="count-pill" id="visible-count">0 channels</span></div>
     <div id="catalog-pane" class="catalog-pane">
-     <div class="catalog-tools"><button id="manage-channel-urls" class="btn btn-subtle" title="Find and edit all channel URLs">Manage URLs</button><div class="searchbox"><span>⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search channel name…" aria-label="Search channels"/></div><label class="category-select-wrap"><span>Category</span><select id="category-select" aria-label="Filter channel category"><option value="All">All categories</option></select></label></div>
+     <div class="catalog-tools"><div class="searchbox"><span>⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search channel name…" aria-label="Search channels"/></div><label class="category-select-wrap"><span>Category</span><select id="category-select" aria-label="Filter channel category"><option value="All">All categories</option></select></label><button id="manage-channel-urls" class="btn btn-subtle" title="Find and edit all channel URLs">Manage URLs</button></div>
      <div id="chips" class="chips" aria-label="Quick category filters" hidden></div>
-     <div class="list-heading"><span>CHANNEL DIRECTORY</span><span id="directory-count">0 results</span></div>
+     <div class="list-heading"><span>CHANNELS</span><span id="directory-count">0 results</span></div>
      <div id="channel-viewport" class="list-viewport" tabindex="0" aria-label="Available channels"><div id="channel-list" class="virtual-list"></div></div>
      <div id="empty" class="empty" hidden><div class="empty-icon">▤</div><strong>No matching channels</strong><span>Try another category, or allow channels in Access.</span></div>
     </div>
