@@ -5,13 +5,14 @@ const clean=(v,max=200)=>String(v??'').replace(/[\r\n\u0000-\u001f]+/g,' ').trim
 const safeAttr=v=>clean(v,1024).replace(/"/g,"'");
 const validUrl=v=>{try{const u=new URL(v);return (u.protocol==='https:'||u.protocol==='http:')&&!u.username&&!u.password;}catch{return false;}};
 const safeCategory=v=>clean(v||'Other',80)||'Other';
-function streamFormat(url){
- try{const u=new URL(url);const path=u.pathname.toLowerCase();if(/\.mpd$/.test(path))return 'DASH';if(/\.m3u8?$/.test(path))return 'HLS';if(/\.mp4$/.test(path))return 'MP4';if(/\.ts$/.test(path))return 'TS';return 'Other';}catch{return 'Invalid';}
+function streamFormat(url,feed){
+ if(feed?.formatHint==='DASH'||feed?.formatHint==='HLS')return feed.formatHint;
+ try{const u=new URL(url);const path=u.pathname.toLowerCase();if(/\.mpd$/.test(path)||/\/(?:dash|manifest)\//.test(path)&&u.searchParams.get('format')==='mpd')return 'DASH';if(/\.m3u8?$/.test(path))return 'HLS';if(/\.mp4$/.test(path))return 'MP4';if(/\.ts$/.test(path))return 'TS';return 'Other';}catch{return 'Invalid';}
 }
 function summarize(groups,raw,playlistSources=[],allowed=[],hidden=[]){
  const byCategory=new Map(),bySource=new Map(),hosts=new Map(),formats={HLS:0,DASH:0,MP4:0,TS:0,Other:0,Invalid:0};const warnings=[],seenUrls=new Set(),rawUrlCounts=new Map();
  for(const s of playlistSources)bySource.set(s.id,{id:s.id,title:s.title,count:0,uniqueUrls:0,unassigned:0});
- for(const c of raw){formats[streamFormat(c.url)]++;const s=bySource.get(c.sourceId);if(s){s.count++;if(!c.category||c.category==='Other')s.unassigned++;}if(validUrl(c.url))rawUrlCounts.set(c.url,(rawUrlCounts.get(c.url)||0)+1);}
+ for(const c of raw){formats[streamFormat(c.url,c)]++;const s=bySource.get(c.sourceId);if(s){s.count++;if(!c.category||c.category==='Other')s.unassigned++;}if(validUrl(c.url))rawUrlCounts.set(c.url,(rawUrlCounts.get(c.url)||0)+1);}
  let alt=0,logoMissing=0,tvgMissing=0,unknown=0,approved=0,visible=0;
  const allowedSet=new Set(allowed),hiddenSet=new Set(hidden),names=new Map();
  for(const g of groups){let cat=safeCategory(g.category),record=byCategory.get(cat);if(!record){record={name:cat,count:0,sources:0,approved:0};byCategory.set(cat,record);}record.count++;record.sources+=g.feeds.length;
@@ -35,7 +36,7 @@ function choose(groups,opts={}){
  for(const g of groups){if(!cats.has(g.category))continue;if(onlyAllowed&&(!allowed.has(g.id)||hidden.has(g.category)))continue;
   const feeds=g.feeds.filter(f=>sources.has(f.sourceId)&&validUrl(f.url));if(!feeds.length)continue;
   const pref=opts.preferred?.[g.id];feeds.sort((a,b)=>(a.url===pref?-1:0)-(b.url===pref?-1:0));
-  const compatible=opts.hlsOnly?feeds.filter(f=>streamFormat(f.url)==='HLS'):feeds;
+  const compatible=opts.hlsOnly?feeds.filter(f=>streamFormat(f.url,f)==='HLS'):feeds;
   const taken=opts.includeAlternatives?compatible:compatible.slice(0,1);
   taken.forEach((f,index)=>options.push({channel:g,feed:f,alternative:index>0,index}));
  }

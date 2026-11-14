@@ -1,4 +1,4 @@
-**Latest Windows release: v1.7.0** — See `README-WINDOWS-1.7.0.md` for searchable per-channel stream URL management, editing, manual backup URLs and persistent overrides.
+**Latest Windows release: v1.8.0** — See `README-WINDOWS-1.8.0.md` for improved M3U parsing, Zio TV playlist shortcuts, format hints and DASH/DRM visibility. Earlier v1.7.x channel editor and UI updates are retained.
 
 **Latest Windows version: v1.6.1** — see README-WINDOWS-1.6.1.md for playlist import and stream-format improvements.
 
@@ -29,3 +29,7 @@ The Android project and Windows desktop source are independent builds. The deskt
 ## Verification
 
 `cd desktop && npm test` tests the parser, merges, compiler, HLS bridge and UI structure. `bash VERIFY_WINDOWS_UPDATE.sh` checks the cumulative desktop runtime source. GitHub Actions builds Windows installers and verifies packaged modules. A real Windows installer and live playback test are still required after a green build.
+
+
+## Windows v1.9.0
+See `README-WINDOWS-1.9.0.md` for bounded HTTP stream checks.

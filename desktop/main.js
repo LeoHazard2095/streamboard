@@ -5,6 +5,7 @@ const path=require('node:path');
 const {URL}=require('node:url');
 const {createStreamBridge}=require('./stream-bridge');
 const {discover}=require('./repo-discovery');
+const {probeStream}=require('./stream-probe');
 let main;let saveQueue=Promise.resolve();const bridge=createStreamBridge();
 const defaults=[
 {id:'bdix',title:'BDIX IPTV',url:'https://raw.githubusercontent.com/saeidrahmanbd/BDIX-IPTV/main/IPTV-Playlist.m3u'},
@@ -25,7 +26,7 @@ function safeState(input){
  if(!input||typeof input!=='object')throw Error('Invalid settings');
  const str=v=>typeof v==='string'?v.slice(0,2048):'';
  const sources=(Array.isArray(input.sources)?input.sources:[]).slice(0,100).filter(s=>s&&validUrl(s.url)).map(s=>({id:str(s.id),title:str(s.title),url:str(s.url)}));
- const channels=(Array.isArray(input.channels)?input.channels:[]).slice(0,60000).filter(c=>c&&validUrl(c.url)).map(c=>({name:str(c.name),url:str(c.url),logo:str(c.logo),tvgId:str(c.tvgId),group:str(c.group),category:str(c.category),language:str(c.language),country:str(c.country),sourceId:str(c.sourceId),sourceName:str(c.sourceName)}));
+ const channels=(Array.isArray(input.channels)?input.channels:[]).slice(0,60000).filter(c=>c&&validUrl(c.url)).map(c=>({name:str(c.name),url:str(c.url),logo:str(c.logo),tvgId:str(c.tvgId),group:str(c.group),category:str(c.category),language:str(c.language),country:str(c.country),sourceId:str(c.sourceId),sourceName:str(c.sourceName),formatHint:['HLS','DASH'].includes(c.formatHint)?c.formatHint:'',requiresDrm:c.requiresDrm===true,hasRequestHeaders:c.hasRequestHeaders===true,headerNames:(Array.isArray(c.headerNames)?c.headerNames:[]).filter(x=>typeof x==='string').slice(0,20).map(x=>str(x).slice(0,50))}));
  const preferred={};for(const [k,v] of Object.entries(input.preferred||{}).slice(0,60000)){if(validUrl(v))preferred[str(k)]=v;}
  const channelEdits={};for(const [id,edit] of Object.entries(input.channelEdits||{}).slice(0,60000)){
   if(!edit||typeof edit!=='object')continue;const replacements={};
@@ -50,6 +51,7 @@ app.whenReady().then(async()=>{
   if(!text.replace(/^\uFEFF/,'').trimStart().startsWith('#EXTM3U'))throw Error('This URL returned a web page, not an M3U playlist. Open the repository file and use its Raw link.');
   return text;
  });
+ ipcMain.handle('stream:probe',async(event,request)=>{trusted(event);if(!request||!validUrl(request.url))throw Error('Invalid stream URL');return probeStream({url:request.url,requiresDrm:request.requiresDrm===true,hasRequestHeaders:request.hasRequestHeaders===true},net.fetch);});
  ipcMain.handle('github:discover',async(event,address)=>{trusted(event);return discover(address,net.fetch);});
  ipcMain.handle('export:write',async(event,request)=>{trusted(event);if(!request||!['m3u','csv'].includes(request.format)||typeof request.content!=='string')throw Error('Invalid export request');
   if(Buffer.byteLength(request.content,'utf8')>24*1024*1024)throw Error('Export exceeds the 24 MB safety limit. Disable backup feeds or export fewer categories.');

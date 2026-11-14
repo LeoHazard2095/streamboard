@@ -268,3 +268,16 @@ body:is([data-view="live"],[data-view="favorites"]) .list-heading{padding:12px 5
 .channel-row:hover .row-logo:after,.channel-row.selected .row-logo:after{content:'▶';position:absolute;inset:0;display:grid;place-items:center;background:rgba(7,20,30,.66);color:white;font-size:13px}
 @media(max-width:1150px){body:is([data-view="live"],[data-view="favorites"]) .catalog-tools{grid-template-columns:minmax(0,1fr) minmax(120px,140px)}body:is([data-view="live"],[data-view="favorites"]) .catalog-tools #manage-channel-urls{grid-column:1/-1;justify-self:end;height:34px}}
 @media(max-width:760px){body:is([data-view="live"],[data-view="favorites"]) .catalog-tools{grid-template-columns:minmax(0,1fr)}body:is([data-view="live"],[data-view="favorites"]) .catalog-tools #manage-channel-urls{grid-column:auto;justify-self:stretch}.channel-row,.access-row{gap:7px}}
+
+.zio-presets{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.zio-presets .btn{min-height:36px}
+
+/* v1.9.0 bounded stream check report */
+.probe-panel{margin:15px 0;padding:13px;border:1px solid #30445a;border-radius:10px;background:#101b29}
+.probe-panel[hidden]{display:none}
+.probe-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}
+.probe-heading small,.probe-explanation{color:#9aaec4;font-size:11px}
+.probe-explanation{line-height:1.55;margin:9px 0}
+.probe-results{max-height:330px;overflow:auto;display:grid;gap:5px}
+.probe-result{display:grid;gap:3px;padding:8px 9px;border-radius:7px;border:1px solid #26384c}
+.probe-result strong{font-size:12px;overflow-wrap:anywhere}
+.probe-result small{color:#aac0d4;line-height:1.5;font-size:11px}
