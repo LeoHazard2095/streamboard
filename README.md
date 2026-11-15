@@ -1,3 +1,5 @@
+> Latest Windows source: **v2.0.0**. See [README-WINDOWS-2.0.0.md](README-WINDOWS-2.0.0.md) for the stream tester and GitHub artifact naming fix.
+
 **Latest Windows release: v1.8.0** — See `README-WINDOWS-1.8.0.md` for improved M3U parsing, Zio TV playlist shortcuts, format hints and DASH/DRM visibility. Earlier v1.7.x channel editor and UI updates are retained.
 
 **Latest Windows version: v1.6.1** — see README-WINDOWS-1.6.1.md for playlist import and stream-format improvements.

@@ -26,7 +26,7 @@ test('Player persists across navigation, and management pages use compact layout
 });
 test('New source details are connected to actual selection and actions',()=>{
  const code=source('app.js');
- assert.match(code,/selectedSourceId=s\.id;renderSources\(\)/);
+ assert.match(code,/selectedSourceId=s\.id;\}renderSources\(\)/);
  assert.match(code,/source-detail-refresh'\)\.onclick=\(\)=>refreshOne\(selected\)/);
  assert.match(code,/source-detail-remove'\)\.onclick=\(\)=>removeSource\(selected\)/);
 });

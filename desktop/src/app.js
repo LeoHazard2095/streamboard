@@ -1,5 +1,5 @@
 'use strict';
-const L=window.StreamLogic,A=window.StreamAnalyzer,E=window.StreamChannelEditor,$=id=>document.getElementById(id),ROW=64;
+const L=window.StreamLogic,A=window.StreamAnalyzer,E=window.StreamChannelEditor,R=window.StreamReport,$=id=>document.getElementById(id),ROW=64;
 const ZIO_PRESETS=[
  ['English','english.m3u'],['Hindi','hindi.m3u'],['All channels','all.m3u'],['Kids Hindi','kids-hindi.m3u'],['Custom','custom.m3u']
 ];
@@ -110,24 +110,51 @@ function renderSources(){
   const row=element('button','source-item'+(s.id===selectedSourceId?' selected':''));row.type='button';row.setAttribute('aria-pressed',String(s.id===selectedSourceId));
   const content=element('div','source-item-body');content.append(element('strong','',s.title),element('small','',hostname));
   const info=element('span','source-item-meta',`${(counts.get(s.id)||0).toLocaleString()} channels`);
-  row.append(content,info);row.onclick=()=>{probeRunId++;$('source-probe-panel').hidden=true;selectedSourceId=s.id;renderSources();};root.append(row);
+  row.append(content,info);row.onclick=()=>{if(selectedSourceId!==s.id){probeRunId++;const prev=probeCache.get(selectedSourceId);if(prev?.running){prev.running=false;prev.cancelled=true;}selectedSourceId=s.id;}renderSources();$('source-detail-test').disabled=false;};root.append(row);
  }
  if(!state.sources.length)root.append(element('div','source-empty','No playlists yet. Add a URL to import your first source.'));
- renderSourceDetails();
+ renderSourceDetails();showProbeResults(selectedSourceId);
+}
+function showProbeResults(sourceId){
+ const saved=probeCache.get(sourceId),panel=$('source-probe-panel'),list=$('source-probe-results');
+ list.replaceChildren();if(!saved){panel.hidden=true;$('probe-export').disabled=true;return;}
+ panel.hidden=false;const results=saved.results.filter(Boolean),filter=$('probe-filter').value;
+ const visible=results.filter(row=>R.matchesFilter(row,filter));
+ for(const {entry,result} of visible){
+  const row=element('div','probe-result');row.dataset.status=result.status;
+  row.append(element('strong','',entry.name||'Unnamed channel'),element('small','',`${result.format||'Unknown'} · ${result.status} · ${result.detail||''}${result.httpStatus?' · HTTP '+result.httpStatus:''}`));
+  list.append(row);
+ }
+ if(!visible.length)list.append(element('div','source-empty',results.length?'No results match this filter.':'No completed checks yet.'));
+ const summary=R.summarize(results);
+ $('source-probe-progress').textContent=`${summary.checked} checked · ${summary.manifests} manifests · ${summary.protected} protected · ${summary.issues} other`+(saved.running?' · running…':saved.cancelled?' · stopped':'');
+ $('probe-export').disabled=!results.length;
+ $('probe-cancel').disabled=!saved.running;
 }
 async function runSourceChecks(source){
- const run=++probeRunId,button=$('source-detail-test'),panel=$('source-probe-panel'),progress=$('source-probe-progress'),list=$('source-probe-results');
- const unique=new Map();for(const entry of state.channels.filter(c=>c.sourceId===source.id)){if(!unique.has(entry.url))unique.set(entry.url,entry);if(unique.size>=25)break;}
- const entries=[...unique.values()];panel.hidden=false;list.replaceChildren();button.disabled=true;progress.textContent=`Checking 0 / ${entries.length}…`;
- if(!entries.length){progress.textContent='Import this playlist first';button.disabled=false;return;}
- const results=new Array(entries.length);let pointer=0,finished=0;const counts={};
- async function worker(){while(run===probeRunId&&pointer<entries.length){const index=pointer++,entry=entries[index];let result;try{result=await window.streamBoard.probeStream({url:entry.url,requiresDrm:!!entry.requiresDrm,hasRequestHeaders:!!entry.hasRequestHeaders});}catch{result={status:'network-error',format:'Unknown',detail:'Probe could not complete'};}
- if(run!==probeRunId)return;results[index]={entry,result};counts[result.status]=(counts[result.status]||0)+1;progress.textContent=`${++finished} / ${entries.length} checked`;const row=element('div','probe-result');const title=element('strong','',entry.name);const detail=element('small','',`${result.format} · ${result.status} · ${result.detail}`);row.append(title,detail);list.append(row);}}
- await Promise.all(Array.from({length:Math.min(3,entries.length)},worker));if(run!==probeRunId)return;progress.textContent=`${finished} checked · ${counts.manifest||0} manifests · ${counts.protected||0} protected`;button.disabled=false;probeCache.set(source.id,{time:Date.now(),results});
+ const run=++probeRunId,button=$('source-detail-test');
+ const limit=Math.min(100,Math.max(1,Number($('probe-limit').value)||25));
+ const unique=new Map();for(const entry of state.channels.filter(c=>c.sourceId===source.id)){if(!unique.has(entry.url))unique.set(entry.url,entry);if(unique.size>=limit)break;}
+ const entries=[...unique.values()];probeCache.set(source.id,{time:Date.now(),results:[],running:true,cancelled:false});
+ button.disabled=true;showProbeResults(source.id);
+ if(!entries.length){probeCache.set(source.id,{results:[],running:false,cancelled:false});showProbeResults(source.id);button.disabled=false;return;}
+ let pointer=0;const results=new Array(entries.length);
+ async function worker(){while(run===probeRunId&&pointer<entries.length){const index=pointer++,entry=entries[index];let result;
+  try{result=await window.streamBoard.probeStream({url:entry.url,requiresDrm:!!entry.requiresDrm,hasRequestHeaders:!!entry.hasRequestHeaders});}
+  catch{result={status:'network-error',format:'Unknown',detail:'Probe could not complete'};}
+  if(run!==probeRunId)return;results[index]={entry,result};
+  probeCache.set(source.id,{time:Date.now(),results:results.filter(Boolean),running:true,cancelled:false});
+  if(source.id===selectedSourceId)showProbeResults(source.id);
+ }}
+ await Promise.all(Array.from({length:Math.min(3,entries.length)},worker));
+ if(run!==probeRunId)return;
+ probeCache.set(source.id,{time:Date.now(),results:results.filter(Boolean),running:false,cancelled:false});
+ button.disabled=false;if(source.id===selectedSourceId)showProbeResults(source.id);
 }
+
 function workerAction(type,payload){return new Promise((resolve,reject)=>{const worker=new Worker('playlist-worker.js');const timeout=setTimeout(()=>{worker.terminate();reject(Error('Playlist processing timed out'));},35000);
  worker.onmessage=e=>{clearTimeout(timeout);worker.terminate();e.data?.error?reject(Error(e.data.error)):resolve(e.data.result);};worker.onerror=e=>{clearTimeout(timeout);worker.terminate();reject(Error(e.message));};worker.postMessage({type,payload});});}
-async function refreshOne(s,{silent=false}={}){probeRunId++;$('source-probe-panel').hidden=true;statuses.set(s.id,'Loading…');if(!silent){report(`Fetching ${s.title}…`);if(tab==='sources')renderSources();}
+async function refreshOne(s,{silent=false}={}){probeRunId++;const previous=probeCache.get(s.id);if(previous?.running){previous.running=false;previous.cancelled=true;}probeCache.delete(s.id);$('source-probe-panel').hidden=true;statuses.set(s.id,'Loading…');if(!silent){report(`Fetching ${s.title}…`);if(tab==='sources')renderSources();}
  try{const text=await window.streamBoard.fetchPlaylist(s.url);const parsed=await workerAction('parse',{text,id:s.id,title:s.title,url:s.url}).catch(()=>L.parse(text,s.id,s.title,s.url));if(!parsed.length)throw Error('No playable channels found');
   state.channels=state.channels.filter(c=>c.sourceId!==s.id).concat(parsed);rebuildCatalog();statuses.set(s.id,`${parsed.length.toLocaleString()} imported`);await persist();
   report(`${s.title}: ${parsed.length.toLocaleString()} channel entries imported`);
@@ -256,6 +283,11 @@ function setup(){
  $('allow-filtered').onclick=()=>{const existing=allowedIds();for(const g of showing)existing.add(g.id);state.allowed=[...existing];rebuildPlayable();persist();filterRows();};
  $('block-filtered').onclick=()=>{const block=new Set(showing.map(g=>g.id));state.allowed=state.allowed.filter(id=>!block.has(id));rebuildPlayable();if(current&&!isAllowed(current))stop('Channel blocked');persist();filterRows();};
  const zioRoot=$('zio-presets');if(zioRoot){for(const [label,file] of ZIO_PRESETS){const button=element('button','btn btn-subtle',label);button.type='button';button.onclick=()=>{const url=ZIO_BASE+file;const existing=state.sources.find(s=>samePlaylistUrl(s.url,url));if(existing){selectedSourceId=existing.id;renderSources();report(`Refreshing existing Zio TV ${label} playlist…`);refreshOne(existing);return;}const source={id:'zio-'+file.replace(/[^a-z0-9]/gi,'-'),title:'Zio TV · '+label,url};state.sources.push(source);selectedSourceId=source.id;persist();renderSources();refreshOne(source);};zioRoot.append(button);}}
+ $('probe-filter').onchange=()=>showProbeResults(selectedSourceId);
+ $('probe-cancel').onclick=()=>{probeRunId++;const saved=probeCache.get(selectedSourceId);if(saved){saved.running=false;saved.cancelled=true;showProbeResults(selectedSourceId);}$('source-detail-test').disabled=false;};
+ $('probe-export').onclick=async()=>{const source=state.sources.find(x=>x.id===selectedSourceId),saved=probeCache.get(selectedSourceId);if(!source||!saved?.results.length)return;
+  try{const result=await window.streamBoard.exportFile({format:'csv',content:R.toCsv(saved.results,source.title)});if(result.saved)report(`Saved ${saved.results.length} stream check results as CSV`);}catch(e){report('Could not export stream report: '+e.message);}
+ };
  $('add-source').onsubmit=e=>{e.preventDefault();const url=$('source-url').value.trim();if(!L.urlOk(url)){report('Enter a valid HTTP/HTTPS playlist URL. Both .m3u and .m3u8 playlists are supported.');return;}const existing=state.sources.find(s=>samePlaylistUrl(s.url,url));if(existing){selectedSourceId=existing.id;renderSources();report(`${existing.title} is already saved. Refreshing it instead of importing a duplicate…`);refreshOne(existing);return;}
  const source={id:'user-'+Date.now(),title:$('source-name').value.trim()||new URL(url).hostname,url};state.sources.push(source);selectedSourceId=source.id;persist();$('source-url').value='';$('source-name').value='';$('add-source-details').open=false;renderSources();refreshOne(source);};
  $('github-form').onsubmit=async e=>{e.preventDefault();const url=$('github-url').value.trim(),root=$('repo-results');root.replaceChildren(element('span','', 'Checking public repository…'));

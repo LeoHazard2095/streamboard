@@ -56,7 +56,7 @@ app.whenReady().then(async()=>{
  ipcMain.handle('export:write',async(event,request)=>{trusted(event);if(!request||!['m3u','csv'].includes(request.format)||typeof request.content!=='string')throw Error('Invalid export request');
   if(Buffer.byteLength(request.content,'utf8')>24*1024*1024)throw Error('Export exceeds the 24 MB safety limit. Disable backup feeds or export fewer categories.');
   const isM3u=request.format==='m3u',extension=isM3u?'m3u':'csv';
-  const {canceled,filePath}=await dialog.showSaveDialog(main,{title:'Export StreamBoard playlist',defaultPath:`StreamBoard-Master.${extension}`,filters:[{name:isM3u?'M3U playlist':'CSV channel report',extensions:[extension]}]});
+  const {canceled,filePath}=await dialog.showSaveDialog(main,{title:isM3u?'Export StreamBoard playlist':'Export StreamBoard report',defaultPath:`${isM3u?'StreamBoard-Master':'StreamBoard-Stream-Checks'}.${extension}`,filters:[{name:isM3u?'M3U playlist':'CSV channel report',extensions:[extension]}]});
   if(canceled||!filePath)return {saved:false};await fs.promises.writeFile(filePath,request.content,'utf8');return {saved:true};
  });
  ipcMain.handle('player:open',async(event,address)=>{trusted(event);if(!validUrl(address))throw Error('Invalid stream URL');return bridge.open(address);});
