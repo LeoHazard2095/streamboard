@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld('streamBoard',Object.freeze({
  save:state=>ipcRenderer.invoke('catalog:save',state),
  fetchPlaylist:url=>ipcRenderer.invoke('playlist:fetch',url),
  probeStream:request=>ipcRenderer.invoke('stream:probe',request),
- openStream:url=>ipcRenderer.invoke('player:open',url),
+ openStream:request=>ipcRenderer.invoke('player:open',request),
  discoverGithub:url=>ipcRenderer.invoke('github:discover',url),
  exportFile:request=>ipcRenderer.invoke('export:write',request)
 }));

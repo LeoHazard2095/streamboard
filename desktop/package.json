@@ -1,7 +1,7 @@
 {
   "name": "streamboard-desktop",
   "productName": "StreamBoard IPTV",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "StreamBoard IPTV Windows player with stream testing, diagnostics, multi-source editing and playlist management",
   "main": "main.js",
@@ -30,7 +30,9 @@
       "stream-probe.js",
       "stream-report.js",
       "repo-discovery.js",
-      "src/**/*"
+      "src/**/*",
+      "playlist-download.js",
+      "request-headers.js"
     ],
     "directories": {
       "output": "dist"

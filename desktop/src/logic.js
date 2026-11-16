@@ -13,6 +13,18 @@ function splitIptvUrl(value){
  const headerNames=[];for(const entry of parts){for(const part of entry.split('&')){const key=part.split('=')[0].trim();if(/^[a-z][a-z0-9-]{0,40}$/i.test(key))headerNames.push(key);}}
  return {address,headerNames:[...new Set(headerNames)]};
 }
+function safeHeader(name,value){
+ const key=String(name||'').toLowerCase().replace(/^http-/,'');const v=String(value||'').trim();
+ if(!['user-agent','referrer','referer'].includes(key)||!v||v.length>512||/[\r\n\0]/.test(v))return null;
+ if(key==='referrer'||key==='referer'){try{const u=new URL(v);if(!['http:','https:'].includes(u.protocol)||u.username||u.password)return null;}catch{return null;}}
+ return [key==='user-agent'?'User-Agent':'Referer',v];
+}
+function readSuffixHeaders(value){const headers={};const chunks=String(value||'').split('|').slice(1);
+ for(const chunk of chunks)for(const pair of chunk.split('&')){const eq=pair.indexOf('=');if(eq<1)continue;
+  let v=pair.slice(eq+1);try{v=decodeURIComponent(v.replace(/\+/g,' '));}catch{}
+  const h=safeHeader(pair.slice(0,eq),v);if(h)headers[h[0]]=h[1];
+ }return headers;
+}
 function parse(text,sourceId,sourceName,baseUrl){
  if(!text||typeof text!=='string')return [];
  const out=[],lines=text.replace(/^\ufeff/,'').split(/\r?\n/);
@@ -30,12 +42,12 @@ function parse(text,sourceId,sourceName,baseUrl){
     if(key.endsWith('manifest_headers')||key.endsWith('stream_headers'))hints.hasRequestHeaders=true;
    }continue;
   }
-  if(/^#EXTVLCOPT:|^#EXTHTTP:/i.test(line)){hints.hasRequestHeaders=true;continue;}
+  if(/^#EXTVLCOPT:|^#EXTHTTP:/i.test(line)){hints.hasRequestHeaders=true;const body=line.slice(line.indexOf(':')+1);const eq=body.indexOf('=');if(eq>0){const h=safeHeader(body.slice(0,eq),body.slice(eq+1));if(h)(hints.headers||(hints.headers={}))[h[0]]=h[1];}continue;}
   if(/^#EXTINF:/i.test(line)){
    const attrs={};for(const m of line.matchAll(/([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s,]+))/g))attrs[m[1].toLowerCase()]=m[2]??m[3]??m[4];
    const comma=line.indexOf(',',line.indexOf(':')+1);const name=(comma>=0?line.slice(comma+1).trim():attrs['tvg-name'])||attrs['tvg-name']||'';
    pending={name,url:'',logo:attrs['tvg-logo']||'',tvgId:attrs['tvg-id']||'',group:attrs['group-title']||group,language:attrs['tvg-language']||'',country:attrs['tvg-country']||'',sourceId,sourceName};
-   pending.category=category(pending.group,pending.name);continue;
+   pending._attrs=attrs;pending.category=category(pending.group,pending.name);continue;
   }
   if(line.startsWith('#'))continue;
   if(!pending){hints={};continue;}
@@ -45,7 +57,11 @@ function parse(text,sourceId,sourceName,baseUrl){
   pending.url=address;pending.name=pending.name||'Unnamed channel';
   pending.formatHint=hints.formatHint||'';pending.requiresDrm=!!hints.requiresDrm;
   pending.hasRequestHeaders=!!hints.hasRequestHeaders||suffix.headerNames.length>0;
-  pending.headerNames=suffix.headerNames;
+  pending.headers={...(hints.headers||{}),...readSuffixHeaders(line)};
+  for(const attr of ['http-user-agent','http-referrer','http-referer'])if(pending._attrs?.[attr]){const h=safeHeader(attr,pending._attrs[attr]);if(h)pending.headers[h[0]]=h[1];}
+  delete pending._attrs;
+  pending.headerNames=[...new Set([...suffix.headerNames,...Object.keys(pending.headers)])];
+  pending.hasRequestHeaders=!!hints.hasRequestHeaders||pending.headerNames.length>0;
   out.push(pending);pending=null;hints={};
   if(out.length>=12000)break;
  }

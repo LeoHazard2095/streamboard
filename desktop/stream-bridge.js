@@ -3,6 +3,7 @@
 const http = require('node:http');
 const crypto = require('node:crypto');
 const {Readable}=require('node:stream');
+const {safeHeaders}=require('./request-headers');
 
 function httpUrl(address){
   const url=new URL(address);
@@ -33,9 +34,9 @@ function createStreamBridge({fetchImpl=global.fetch, requestTimeoutMs=18000}={})
   let server,port=0;
   const HEADERS={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET, HEAD, OPTIONS','Access-Control-Allow-Headers':'Range, Accept, Content-Type','Cross-Origin-Resource-Policy':'cross-origin','X-Content-Type-Options':'nosniff'};
   function send(res,status,message){res.writeHead(status,{'Content-Type':'text/plain; charset=utf-8',...HEADERS});res.end(message);}
-  function sessionFor(initial){
+  function sessionFor(initial,customHeaders={}){
     const token=crypto.randomBytes(24).toString('hex');
-    const session={token,resources:new Map(),byUrl:new Map(),created:Date.now()};
+    const session={token,resources:new Map(),byUrl:new Map(),created:Date.now(),headers:safeHeaders(customHeaders)};
     sessions.set(token,session);
     while(sessions.size>4){sessions.delete(sessions.keys().next().value);}
     function register(raw){
@@ -65,7 +66,7 @@ function createStreamBridge({fetchImpl=global.fetch, requestTimeoutMs=18000}={})
     // Abort when the viewer stops consuming data, but not when response naturally ends.
     res.on('close',()=>{if(!res.writableEnded)controller.abort();});
     try {
-      const headers={Accept:'*/*','User-Agent':'StreamBoard-IPTV/1.2 (Windows; local media player)'};
+      const headers={Accept:'*/*','User-Agent':'StreamBoard-IPTV/2.0.1 (Windows; local media player)',...session.headers};
       if(req.headers.range && /^bytes=\d*-\d*$/.test(req.headers.range))headers.Range=req.headers.range;
       const response=await fetchImpl(upstream,{method:req.method,headers,signal:controller.signal,redirect:'follow'});
       clearTimeout(timeout);
@@ -114,7 +115,7 @@ function createStreamBridge({fetchImpl=global.fetch, requestTimeoutMs=18000}={})
     return port;
   }
   return {
-    start,open:(url)=>{if(!port)throw Error('Playback bridge has not started');return sessionFor(url);},
+    start,open:(url,headers={})=>{if(!port)throw Error('Playback bridge has not started');return sessionFor(url,headers);},
     close:()=>new Promise(resolve=>{sessions.clear();if(server){server.close(()=>resolve());server.closeAllConnections?.();server=null;}else resolve();}),
     get port(){return port;}
   };

@@ -155,8 +155,8 @@ async function runSourceChecks(source){
 function workerAction(type,payload){return new Promise((resolve,reject)=>{const worker=new Worker('playlist-worker.js');const timeout=setTimeout(()=>{worker.terminate();reject(Error('Playlist processing timed out'));},35000);
  worker.onmessage=e=>{clearTimeout(timeout);worker.terminate();e.data?.error?reject(Error(e.data.error)):resolve(e.data.result);};worker.onerror=e=>{clearTimeout(timeout);worker.terminate();reject(Error(e.message));};worker.postMessage({type,payload});});}
 async function refreshOne(s,{silent=false}={}){probeRunId++;const previous=probeCache.get(s.id);if(previous?.running){previous.running=false;previous.cancelled=true;}probeCache.delete(s.id);$('source-probe-panel').hidden=true;statuses.set(s.id,'Loading…');if(!silent){report(`Fetching ${s.title}…`);if(tab==='sources')renderSources();}
- try{const text=await window.streamBoard.fetchPlaylist(s.url);const parsed=await workerAction('parse',{text,id:s.id,title:s.title,url:s.url}).catch(()=>L.parse(text,s.id,s.title,s.url));if(!parsed.length)throw Error('No playable channels found');
-  state.channels=state.channels.filter(c=>c.sourceId!==s.id).concat(parsed);rebuildCatalog();statuses.set(s.id,`${parsed.length.toLocaleString()} imported`);await persist();
+ try{const fetched=await window.streamBoard.fetchPlaylist(s.url);const text=typeof fetched==='string'?fetched:fetched.text;const parsed=await workerAction('parse',{text,id:s.id,title:s.title,url:s.url}).catch(()=>L.parse(text,s.id,s.title,s.url));if(!parsed.length)throw Error('No playable channels found');
+  state.channels=state.channels.filter(c=>c.sourceId!==s.id).concat(parsed);rebuildCatalog();statuses.set(s.id,`${parsed.length.toLocaleString()} imported${fetched.method?' · '+fetched.method:''}`);await persist();
   report(`${s.title}: ${parsed.length.toLocaleString()} channel entries imported`);
  }catch(e){statuses.set(s.id,'Failed: '+e.message);report(`${s.title}: ${e.message}. Previously saved entries retained.`);}
  if(!silent){if(tab==='sources')renderSources();else switchTab(tab);}
@@ -184,7 +184,7 @@ async function openFeed(i){if(!current||i<0||i>=feeds.length)return;const versio
  playerStatus(`Connecting · ${f.sourceName||'source'} · ${i+1}/${feeds.length}`);
  if(f.requiresDrm||A.streamFormat(f.url,f)==='DASH'){recordDiag('format','DASH or DRM-protected stream requires a compatible, authorized player. Searching for an HLS backup.');failover('DASH/DRM is not supported by the embedded player. Try a compatible authorized player or an HLS backup.');return;}
  let local;
- try{local=await window.streamBoard.openStream(f.url);}catch(e){if(version===generation){recordDiag('bridge',String(e.message).replace(/https?:\/\/[^\s]+/g,'[stream URL]'));failover(e.message);}return;}
+ try{local=await window.streamBoard.openStream({url:f.url,headers:f.headers||{}});}catch(e){if(version===generation){recordDiag('bridge',String(e.message).replace(/https?:\/\/[^\s]+/g,'[stream URL]'));failover(e.message);}return;}
  if(version!==generation)return;
   const isHls=A.streamFormat(f.url,f)==='HLS';
  if(isHls&&window.Hls?.isSupported()){
